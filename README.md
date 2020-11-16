@@ -1,25 +1,18 @@
-# SCAMmer v.1: a baseline classification model to predict SCAMs (Small Colloidally-Aggregating molecules)
+# [Some name] a class to compare performance of AL and non-AL models
 
-Structure filtering is an essential step in SAR modelling. I do not have Chemaxon Structure Checker license, therefore I used ChemSAR (http://chemsar.scbdd.com/tools/mol_validate/).
+Example of command to run script:
 
-ChemSAR input file should be given as SDF, so I converted SMILES to SDF using [PandasTools](http://rdkit.org/docs/source/rdkit.Chem.PandasTools.html) from RDKit, see [SMILES_to_SDF.py](SCAMmer/SMILES_to_SDF.py).
+```$ python main.py -p '/home/khali/Desktop/SCAMmer/' -f 'SCAMS_filtered.csv'```
 
-[filter_ChemSAR_val_res.py](SCAMmer/filter_ChemSAR_val_res.py) filters dataset [aggregator_hts.csv](Data/aggregator_hts.csv) using [ChemSAR](http://chemsar.scbdd.com/tools/mol_validate/) validation results [val_table.csv](Data/val_table.csv). Example of command to run script:
-
-```$ python filter_ChemSAR_val_res.py -a /home/khali/Desktop/Reker_Lab/SCAMs/Data -b val_table.csv -c aggregator_hts.csv```
-
-
-[SCAMmer.ipynb](SCAMmer/SCAMmer.ipynb): a notebook with baseline model training
-
-
-## Requirements
-To check a list of basic dependencies please see [requirements.txt](SCAMmer/requirements.txt)
-
-## Implemented Model
-I trained [LGBMClassifier](https://lightgbm.readthedocs.io/en/latest/pythonapi/lightgbm.LGBMClassifier.html)
-
-## Imbalanced classification
-To deal with the issue of imbalanced dataset I used [ADASYN](https://imbalanced-learn.readthedocs.io/en/stable/generated/imblearn.over_sampling.ADASYN.html) approach
+I used [t-test for means of two independent samples](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_ind_from_stats.html), since our AL and non-AL models are trained on different data 
+(AL training set is a subset of non-AL training set). I can not use [5x2cv paired t test](http://rasbt.github.io/mlxtend/user_guide/evaluate/paired_ttest_5x2cv/), since it requires the
+ same training sets for models:
+```
+t, p = paired_ttest_5x2cv(estimator1=clf1,
+                          estimator2=clf2,
+                          X=X, y=y,
+                          random_seed=1)
+``` 
 
 
 
@@ -42,7 +35,7 @@ To ensure that our hypothesis is generalizable and not limited to a single use c
 - dataset
    - small Shoichet dataset from Excel sheet
    - larger Shoichet dataset Excel + large set of positive data from AggAdvisor
-   - dataset from Tropshka SCAMDetective based PubChem
+   - dataset from Tropsha SCAMDetective based PubChem
      - bLactamase https://pubs-acs-org.proxy.lib.duke.edu/doi/suppl/10.1021/acs.jcim.0c00415/suppl_file/ci0c00415_si_002.zip
      - Cruzain https://pubs-acs-org.proxy.lib.duke.edu/doi/suppl/10.1021/acs.jcim.0c00415/suppl_file/ci0c00415_si_003.zip
 - descriptor
@@ -62,3 +55,18 @@ To ensure that our hypothesis is generalizable and not limited to a single use c
   - CatBoostClassifier
   - GaussianNB
   - SVC
+
+# Update
+I calculated t-stats. They are presented below
+
+| Metrics        | p_adj           | significant  |
+| ------------- |:-------------:| -----:|
+| AUC_LB      | 4.04 | False |
+| AUC     | 4.72     |   False |
+| AUC_UB | 4.47     |    False |
+| Accuracy | 0.15     |    False |
+| F1 | 0.00045     |    True |
+| MCC | 0.00066     |    True |
+
+
+
