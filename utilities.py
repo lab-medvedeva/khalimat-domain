@@ -5,17 +5,23 @@ import scipy.stats as stats
 
 from sklearn.utils import resample
 
+from rdkit import Chem
 from rdkit.Chem import Descriptors, AllChem, MACCSkeys, RDKFingerprint
+from rdkit import DataStructs
+from rdkit.ML.Cluster import Butina
 
 from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, \
-                             RandomForestClassifier
+    RandomForestClassifier
 
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-
 from catboost import CatBoostClassifier
+
+from modAL.uncertainty import uncertainty_sampling
+from imblearn.over_sampling import ADASYN, SMOTE  # upsampling
+from imblearn.under_sampling import CondensedNearestNeighbour
 
 
 DESCRIPTORS = {'MorganFingerprint': AllChem.GetMorganFingerprintAsBitVect,
@@ -28,6 +34,19 @@ MODELS = {'GradientBoosting': GradientBoostingClassifier(),
           'SVC': SVC(probability=True), 'GaussianNB': GaussianNB(),
           'ExtraTreesClassifier': ExtraTreesClassifier(),
           'LGBM': LGBMClassifier()}
+
+SAMPLING = {'SMOTE': SMOTE(),
+            'ADASYN': ADASYN(),
+            'CondensedNearestNeighbour': CondensedNearestNeighbour(random_state=0)}
+
+#
+# AL_STRATEGY = {'GradientBoosting': uncertainty_sampling,
+#                      'CatBoostClassifier': uncertainty_sampling,
+#                      'RandomForestClassifier': uncertainty_sampling,
+#                      'SVC': SVC(probability=True), 'GaussianNB': GaussianNB(),
+#                      'ExtraTreesClassifier': ExtraTreesClassifier(),
+#                      'LGBM': uncertainty_sampling}
+#
 METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1', 'MCC']
 
 
@@ -51,7 +70,7 @@ def compute_midrank(x):
         j = i
         while j < N and Z[j] == Z[i]:
             j += 1
-        T[i:j] = 0.5*(i + j - 1)
+        T[i:j] = 0.5 * (i + j - 1)
         i = j
     T2 = np.empty(N, dtype=np.float)
     # Note(kazeevn) +1 is due to Python using 0-based indexing
@@ -188,7 +207,7 @@ def delong_roc_test(ground_truth, predictions_one, predictions_two):
 
 
 def calc_auc_ci(y_true, y_pred, alpha=0.95):
-    auc, auc_cov = delong_roc_variance(y_true,y_pred)
+    auc, auc_cov = delong_roc_variance(y_true, y_pred)
     auc_std = np.sqrt(auc_cov)
     lower_upper_q = np.abs(np.array([0, 1]) - (1 - alpha) / 2)
     ci = stats.norm.ppf(
@@ -198,6 +217,7 @@ def calc_auc_ci(y_true, y_pred, alpha=0.95):
 
     ci[ci > 1] = 1
     return auc, ci
+
 
 def bootstrap_error_estimate(pred, truth, method, method_name="", alpha=0.95, sample_frac=0.5, iterations=1000):
     """
@@ -224,3 +244,47 @@ def bootstrap_error_estimate(pred, truth, method, method_name="", alpha=0.95, sa
     p = (alpha + ((1.0 - alpha) / 2.0)) * 100
     upper = min(1.0, np.percentile(stats, p))
     return lower, upper
+
+
+def butina_cluster(mol_list, cutoff=0.35):
+    """
+    Reference
+    __________
+    @article{butina1999unsupervised,
+      title={Unsupervised data base clustering based on daylight's fingerprint and Tanimoto similarity:
+      A fast and automated way to cluster small and large data sets},
+      author={Butina, Darko},
+      journal={Journal of Chemical Information and Computer Sciences},
+      volume={39},
+      number={4},
+      pages={747--750},
+      year={1999},
+      publisher={ACS Publications}
+    }
+    Make a clusters based Butina clustering algorithm using MorganFingerprints similarity
+
+    Function adopted from:
+    https://github.com/PatWalters/Learning_Cheminformatics/blob/master/clustering.ipynb
+
+    Parameters
+    __________
+    :param mol_list: list of rdkit.Chem.rdchem.Mol object to cluster
+    :param cutoff: Tanimoto similarity cutoff
+
+    Return
+    _______
+    :return: list with cluster id for every molecule from mol_list
+
+    """
+    fp_list = [AllChem.GetMorganFingerprintAsBitVect(m, 3, nBits=2048) for m in mol_list]
+    dists = []
+    nfps = len(fp_list)
+    for i in range(1, nfps):
+        sims = DataStructs.BulkTanimotoSimilarity(fp_list[i], fp_list[:i])
+        dists.extend([1 - x for x in sims])
+    mol_clusters = Butina.ClusterData(dists, nfps, cutoff, isDistData=True)
+    cluster_id_list = [0] * nfps
+    for idx, cluster in enumerate(mol_clusters, 1):
+        for member in cluster:
+            cluster_id_list[member] = idx
+    return cluster_id_list
