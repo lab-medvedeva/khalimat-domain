@@ -263,7 +263,7 @@ def butina_cluster(mol_list, cutoff=0.35):
     }
     Make a clusters based Butina clustering algorithm using MorganFingerprints similarity
 
-    Function adopted from:
+    Function adapted from:
     https://github.com/PatWalters/Learning_Cheminformatics/blob/master/clustering.ipynb
 
     Parameters
