@@ -21,15 +21,15 @@ from catboost import CatBoostClassifier
 
 from modAL.uncertainty import uncertainty_sampling
 from imblearn.over_sampling import ADASYN, SMOTE  # upsampling
-from imblearn.under_sampling import CondensedNearestNeighbour
+from imblearn.under_sampling import CondensedNearestNeighbour, InstanceHardnessThreshold  # downsampling
+
 
 
 DESCRIPTORS = {'MorganFingerprint': AllChem.GetMorganFingerprintAsBitVect,
                'RDKFingerprint': RDKFingerprint,
                'MACCSkeys': MACCSkeys}
 
-MODELS = {'GradientBoosting': GradientBoostingClassifier(),
-          'CatBoostClassifier': CatBoostClassifier(silent=True),
+MODELS = {'CatBoostClassifier': CatBoostClassifier(silent=True),
           'RandomForestClassifier': RandomForestClassifier(),
           'SVC': SVC(probability=True), 'GaussianNB': GaussianNB(),
           'ExtraTreesClassifier': ExtraTreesClassifier(),
@@ -37,7 +37,8 @@ MODELS = {'GradientBoosting': GradientBoostingClassifier(),
 
 SAMPLING = {'SMOTE': SMOTE(),
             'ADASYN': ADASYN(),
-            'CondensedNearestNeighbour': CondensedNearestNeighbour(random_state=0)}
+            'CondensedNearestNeighbour': CondensedNearestNeighbour(random_state=0),
+            'InstanceHardnessThreshold': InstanceHardnessThreshold(random_state=42)}
 
 #
 # AL_STRATEGY = {'GradientBoosting': uncertainty_sampling,
@@ -263,7 +264,7 @@ def butina_cluster(mol_list, cutoff=0.35):
     }
     Make a clusters based Butina clustering algorithm using MorganFingerprints similarity
 
-    Function adapted from:
+    Function adopted from:
     https://github.com/PatWalters/Learning_Cheminformatics/blob/master/clustering.ipynb
 
     Parameters
@@ -288,3 +289,74 @@ def butina_cluster(mol_list, cutoff=0.35):
         for member in cluster:
             cluster_id_list[member] = idx
     return cluster_id_list
+
+def _generate_scaffold(smiles, include_chirality=False):
+    """
+    I copied the function from deepchem.
+
+    Compute the Bemis-Murcko scaffold for a SMILES string.
+    Bemis-Murcko scaffolds are described in DOI: 10.1021/jm9602928.
+    They are essentially that part of the molecule consisting of
+    rings and the linker atoms between them.
+
+    Paramters
+    ---------
+    smiles: str
+    SMILES
+    include_chirality: bool, default False
+    Whether to include chirality in scaffolds or not.
+    Returns
+    -------
+    str
+    The MurckScaffold SMILES from the original SMILES
+    References
+    ----------
+    .. [1] Bemis, Guy W., and Mark A. Murcko. "The properties of known drugs.
+     1. Molecular frameworks." Journal of medicinal chemistry 39.15 (1996): 2887-2893.
+    Note
+    ----
+    This function requires RDKit to be installed.: bool
+    """
+    try:
+        from rdkit import Chem
+        from rdkit.Chem.Scaffolds.MurckoScaffold import MurckoScaffoldSmiles
+    except ModuleNotFoundError:
+        raise ImportError("This function requires RDKit to be installed.")
+
+    mol = Chem.MolFromSmiles(smiles)
+    scaffold = MurckoScaffoldSmiles(mol=mol, includeChirality=include_chirality)
+    return scaffold
+
+
+def generate_scaffolds(dataset):
+    """Returns all scaffolds from the dataset.
+    Adapted from deepchem
+    Parameters
+    ----------
+    dataset: Dataset
+      Dataset to be split.
+    log_every_n: int, optional (default 1000)
+      Controls the logger by dictating how often logger outputs
+      will be produced.
+    Returns
+    -------
+    scaffold_sets: List[List[int]]
+      List of indices of each scaffold in the dataset.
+    """
+    scaffolds = {}
+    data_len = dataset.shape[0]
+
+    for ind, smiles in enumerate(dataset['Smiles String']):
+        scaffold = _generate_scaffold(smiles)
+        if scaffold not in scaffolds:
+            scaffolds[scaffold] = [ind]
+        else:
+            scaffolds[scaffold].append(ind)
+
+    # Sort from largest to smallest scaffold sets
+    scaffolds = {key: sorted(value) for key, value in scaffolds.items()}
+    scaffold_sets = [
+        scaffold_set for (scaffold, scaffold_set) in sorted(
+            scaffolds.items(), key=lambda x: (len(x[1]), x[1][0]), reverse=True)
+    ]
+    return scaffold_sets

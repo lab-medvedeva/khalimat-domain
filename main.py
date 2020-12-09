@@ -35,10 +35,12 @@ from imblearn.under_sampling import CondensedNearestNeighbour  # downsampling
 #  Importing module for active learning
 from modAL.models import ActiveLearner, Committee
 from modAL.uncertainty import uncertainty_sampling
+from modAL.disagreement import vote_entropy_sampling
+
 from modAL.multilabel import SVM_binary_minimum, avg_score
 
 # Importing modules to calculate confidence intervals and descriptors
-from utilities import calc_auc_ci, butina_cluster
+from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
 
 from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING
 
@@ -164,13 +166,16 @@ class TrainModel:
     # Added class variables
     N_BITS = 2048  # Number of bits
     M_R = 3  # Morgan Fingerprint's Radius
+    N_L = 3  # Number of commitee learners
 
     def __init__(self, data, activity_colunm_name,
                  descriptor, models, test_split_r,
                  scaler=StandardScaler(),
                  sampling=SMOTE(), n_features=300,
                  initial=10, run_butina=False,
-                 run_sampling=False):
+                 run_scaf_split=False,
+                 run_sampling=False,
+                 committee=False):
 
         self.dataset = data.copy()
         self.activity_column_name = activity_colunm_name
@@ -191,7 +196,9 @@ class TrainModel:
         self.cv_n = 10
         self.t_test = None
         self.run_butina = run_butina
+        self.run_scaf_split = run_scaf_split
         self.run_sampling = run_sampling
+        self.committee = committee
 
     def run(self):
         self.calculate_descriptors()
@@ -237,9 +244,6 @@ class TrainModel:
             dataset[self.activity_column_name],
             test_size=test_split_r)  # Split data into test and train
 
-        print('{} samples in X_train'.format(X_train.shape[0]))  # Print train sample size
-        print('{} samples in X_test'.format(X_test.shape[0]))  # Print test sample size
-
         X_train = self.transform_X(
             X_train.iloc[:, 0])  # Select 1-st column with calculated descriptors and transform to numpy array
         X_test = self.transform_X(X_test.iloc[:, 0])
@@ -280,7 +284,7 @@ class TrainModel:
         return X_train, Y_train
 
     @staticmethod
-    def auc_for_modAL(model, X_test, Y_test):
+    def auc_for_modAL(model, X_test, Y_test, ):
         """
         Calculate ROC-AUC lower bound, ROC-AUC, ROC-AUC upper bound for AL-model
 
@@ -307,6 +311,21 @@ class TrainModel:
         tn, fp, fn, tp = confusion_matrix(Y_test, y_pred).ravel()
         return f_one, (tp * tn - fp * fn) / ((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)) ** 0.5
 
+    def make_committee(self, cls, X_initial, y_initial, n_learners=3):
+        learner_list = []
+        for _ in range(n_learners):
+            learner = ActiveLearner(
+                estimator=cls,
+                X_training=X_initial, y_training=y_initial)
+            learner_list.append(learner)
+
+        # assembling the Committee
+        committee = Committee(learner_list=learner_list,
+                              query_strategy=vote_entropy_sampling)
+
+
+        return committee
+
     def AL_strategy(self, X_train, X_test, Y_train, Y_test,
                     n_initial, n_queries,
                     cls=RandomForestClassifier(),
@@ -331,11 +350,14 @@ class TrainModel:
         X_pool, y_pool = np.delete(X_train, initial_idx, axis=0), \
                          np.delete(Y_train, initial_idx, axis=0)
 
-        learner = ActiveLearner(
-            estimator=cls,
-            query_strategy=q_strategy,
-            X_training=X_initial, y_training=y_initial
-        )
+        if self.committee:
+            learner = self.make_committee(cls, X_initial, y_initial, self.N_L)
+        else:
+            learner = ActiveLearner(
+                estimator=cls,
+                query_strategy=q_strategy,
+                X_training=X_initial, y_training=y_initial
+            )
         AL_accuracy_scores = [learner.score(X_test, Y_test)]
         auc_d, (lb_d, ub_d) = self.auc_for_modAL(learner, X_test, Y_test)
         f_one, mcc = self.f_one_mcc_score(learner, X_test, Y_test)
@@ -350,7 +372,10 @@ class TrainModel:
 
         for i in range(n_queries):
             query_idx, query_inst = learner.query(X_pool)
-            learner.teach(X_pool[query_idx], y_pool[query_idx])
+            if self.committee:
+                learner.teach(X_pool[query_idx].reshape(1, -1), y_pool[query_idx].reshape(1, ))
+            else:
+                learner.teach(X_pool[query_idx], y_pool[query_idx])
             X = np.append(X, X_pool[query_idx], axis=0)
             Y = np.append(Y, y_pool[query_idx])
             X_pool, y_pool = np.delete(X_pool, query_idx, axis=0), np.delete(y_pool, query_idx, axis=0)
@@ -422,6 +447,26 @@ class TrainModel:
                            self.transform_X(train_set[y_column_name])
         return X_train, X_test, Y_train, Y_test
 
+    def split_with_scaffold_splitter(self, scams_df, split_r, x_column_name='MorganFingerprint',
+                          y_column_name='agg?'):
+        n_samples_test = int(scams_df.shape[0] * split_r)
+        scaffold_sets = generate_scaffolds(scams_df)
+        train_cutoff = (1 - self.test_split_r) * scams_df.shape[0]
+        train_inds = []
+        test_inds = []
+
+        for scaffold_set in scaffold_sets:
+            if len(train_inds) + len(scaffold_set) > train_cutoff:
+                test_inds += scaffold_set
+            else:
+                train_inds += scaffold_set
+        X_train = self.transform_X(scams_df.iloc[train_inds][x_column_name])
+        X_test = self.transform_X(scams_df.iloc[test_inds][x_column_name])
+        Y_train = self.transform_X(scams_df.iloc[train_inds][y_column_name])
+        Y_test = self.transform_X(scams_df.iloc[test_inds][y_column_name])
+        return X_train, X_test, Y_train, Y_test
+
+
 
     def non_AL_strategy(self, model_name, model_function,
                         X_train, Y_train, X_test, Y_test):
@@ -435,6 +480,7 @@ class TrainModel:
         f_one, mcc = self.f_one_mcc_score(SCAMsCls, X_test, Y_test)
         test_accuracy = accuracy_score(Y_test, SCAMsCls.predict(X_test))
         auc_d, (lb_d, ub_d) = calc_auc_ci(Y_test, test_predicted[:, 1])
+
         # print('AUC score for {} model is {: .3}. Accuracy is {: .3}. MCC is {: .3}. F1 score is {: .3}'.format(
         #     model_name, auc_d, test_accuracy, mcc, f_one))
         performance_stats = [lb_d, auc_d, ub_d, test_accuracy, f_one, mcc]
@@ -452,6 +498,8 @@ class TrainModel:
             for i in range(self.cv_n):
                 if self.run_butina:
                     X_train, X_test, Y_train, Y_test = self.split_with_butina(self.dataset, self.test_split_r)
+                if self.run_scaf_split:
+                    X_train, X_test, Y_train, Y_test = self.split_with_scaffold_splitter(self.dataset, self.test_split_r)
                 else:
                     X_train, X_test, Y_train, Y_test = self.split_train_val(self.dataset, self.test_split_r)
                 # Run non-AL model and save the results
@@ -535,7 +583,10 @@ if __name__ == "__main__":
                     help='Run butina algorithm, False or True', type=bool)
     ap.add_argument('-rs', '--run_sampling', required=False, default=False,
                     help='Run up- or downsampling', type=bool)
-
+    ap.add_argument('-ss', '--scaf_split', default=False,
+                    help='Run scaffold split, False or True', type=bool)
+    ap.add_argument('-c', '--committee', default=False,
+                    help='Make committee learner, False or True', type=bool)
     args = ap.parse_args()
     models = {}
     for m in args.models:
@@ -555,7 +606,9 @@ if __name__ == "__main__":
                                test_split_r=args.test_split_ratio,
                                sampling=sampling_u,
                                run_butina=args.butina,
-                               run_sampling=args.run_sampling)
+                               run_scaf_split=args.scaf_split,
+                               run_sampling=args.run_sampling,
+                               committee=args.committee)
     ModelInstince.run()
 
 
