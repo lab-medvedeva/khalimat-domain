@@ -17,7 +17,7 @@ from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-from catboost import CatBoostClassifier
+# from catboost import CatBoostClassifier
 
 from modAL.uncertainty import uncertainty_sampling
 from imblearn.over_sampling import ADASYN, SMOTE  # upsampling
@@ -29,11 +29,11 @@ DESCRIPTORS = {'MorganFingerprint': AllChem.GetMorganFingerprintAsBitVect,
                'RDKFingerprint': RDKFingerprint,
                'MACCSkeys': MACCSkeys}
 
-MODELS = {'CatBoostClassifier': CatBoostClassifier(silent=True),
-          'RandomForestClassifier': RandomForestClassifier(),
+MODELS = {'RandomForestClassifier': RandomForestClassifier(n_jobs=-1),
           'SVC': SVC(probability=True), 'GaussianNB': GaussianNB(),
-          'ExtraTreesClassifier': ExtraTreesClassifier(),
-          'LGBM': LGBMClassifier()}
+          'ExtraTreesClassifier': ExtraTreesClassifier(n_jobs=-1),
+          'LGBM': LGBMClassifier(n_jobs=-1),
+          'XGBClassifier': XGBClassifier(n_jobs=-1)}
 
 SAMPLING = {'SMOTE': SMOTE(),
             'ADASYN': ADASYN(),

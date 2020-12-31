@@ -13,13 +13,11 @@ import numpy as np
 
 #  Importing modules from sklearn
 import sklearn
-from sklearn import svm
 from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, \
     RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 
-from sklearn.feature_selection import SelectFromModel, mutual_info_classif
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.metrics import roc_auc_score, confusion_matrix, accuracy_score, \
@@ -37,11 +35,8 @@ from modAL.models import ActiveLearner, Committee
 from modAL.uncertainty import uncertainty_sampling
 from modAL.disagreement import vote_entropy_sampling
 
-from modAL.multilabel import SVM_binary_minimum, avg_score
-
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
-
 from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING
 
 # Importing lightgbm to train classifier
@@ -49,19 +44,18 @@ from lightgbm import LGBMClassifier
 import optuna.integration.lightgbm as lgb
 from xgboost import XGBClassifier
 
-from catboost import CatBoostClassifier
 import xgboost as xgb
 
 #  Importing packages to enable processing of chemical structures
 import rdkit
 from rdkit import Chem
-from rdkit.Chem import Descriptors, AllChem, MACCSkeys, RDKFingerprint
 
 #  Importing RDLogger to filter out rdkit warnings
 from rdkit import RDLogger
 
 #  Importing package to filter out warnings
 import warnings
+import threading
 
 from collections import Counter
 from itertools import combinations
@@ -71,6 +65,7 @@ from mlxtend.evaluate import mcnemar_table, mcnemar
 import optuna
 from hyperopt import tpe
 from scipy import stats
+import time
 
 RDLogger.DisableLog('rdApp.*')
 warnings.filterwarnings("ignore")
@@ -193,18 +188,24 @@ class TrainModel:
         self.test_predicted = None
         self.non_AL_stats = None
         self.AL_stats = None
-        self.cv_n = 10
+        self.cv_n = 100
         self.t_test = None
         self.run_butina = run_butina
         self.run_scaf_split = run_scaf_split
         self.run_sampling = run_sampling
         self.committee = committee
+        self.max_mcc_data_percent = None
 
     def run(self):
+        time_zero = time.time()
         self.calculate_descriptors()
+        time_descr = time.time()
+        print('It took {} seconds to calculate descriptors'.format(int(time_descr - time_zero)))
         self.fit_model_CV()
+        time_fit = time.time()
+        print('It took {} seconds to fit models'.format(int(time_fit - time_descr)))
         self.calculate_t_test()
-
+        print(self.max_mcc_data_percent)
 
     def calculate_descriptors(self):
         """
@@ -323,7 +324,6 @@ class TrainModel:
         committee = Committee(learner_list=learner_list,
                               query_strategy=vote_entropy_sampling)
 
-
         return committee
 
     def AL_strategy(self, X_train, X_test, Y_train, Y_test,
@@ -390,6 +390,7 @@ class TrainModel:
                 AL_mcc_scores.append(0)
             AL_f_one_scores.append(f_one)
             AL_accuracy_scores.append(learner.score(X_test, Y_test))
+
         max_auc_l = max(AL_auc_l_scores)
         max_auc_m = max(AL_auc_scores)
         max_auc_u = max(AL_auc_u_scores)
@@ -399,6 +400,11 @@ class TrainModel:
         performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
         max_mcc_index = np.argmax(AL_mcc_scores)
         final_X_train, final_Y_train = X[0: max_mcc_index + n_initial, ], Y[0: max_mcc_index + n_initial, ]
+        if self.max_mcc_data_percent is None:
+            self.max_mcc_data_percent = []
+        self.max_mcc_data_percent.append((final_X_train.shape[0] / X_train.shape[0]) * 100)
+
+        print(final_X_train.shape[0])
         final_cls = cls
         final_cls.fit(final_X_train, final_Y_train)
         predicted_labels = final_cls.predict(X_test)
@@ -448,7 +454,7 @@ class TrainModel:
         return X_train, X_test, Y_train, Y_test
 
     def split_with_scaffold_splitter(self, scams_df, split_r, x_column_name='MorganFingerprint',
-                          y_column_name='agg?'):
+                                     y_column_name='agg?'):
         n_samples_test = int(scams_df.shape[0] * split_r)
         scaffold_sets = generate_scaffolds(scams_df)
         train_cutoff = (1 - self.test_split_r) * scams_df.shape[0]
@@ -465,8 +471,6 @@ class TrainModel:
         Y_train = self.transform_X(scams_df.iloc[train_inds][y_column_name])
         Y_test = self.transform_X(scams_df.iloc[test_inds][y_column_name])
         return X_train, X_test, Y_train, Y_test
-
-
 
     def non_AL_strategy(self, model_name, model_function,
                         X_train, Y_train, X_test, Y_test):
@@ -493,13 +497,14 @@ class TrainModel:
         """
         performance_stats_n_AL = []
         performance_stats_AL = []
-        mc_nemar_stats =[]
+        mc_nemar_stats = []
         for model_name, model_function in self.models.items():
             for i in range(self.cv_n):
                 if self.run_butina:
                     X_train, X_test, Y_train, Y_test = self.split_with_butina(self.dataset, self.test_split_r)
                 if self.run_scaf_split:
-                    X_train, X_test, Y_train, Y_test = self.split_with_scaffold_splitter(self.dataset, self.test_split_r)
+                    X_train, X_test, Y_train, Y_test = self.split_with_scaffold_splitter(self.dataset,
+                                                                                         self.test_split_r)
                 else:
                     X_train, X_test, Y_train, Y_test = self.split_train_val(self.dataset, self.test_split_r)
                 # Run non-AL model and save the results
@@ -514,16 +519,16 @@ class TrainModel:
 
                 # Run AL model and save the results
                 n_q = self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial)
-                [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_n_al], y_AL_model = self.AL_strategy(X_train,
-                                                                                                             X_test,
-                                                                                                             Y_train,
-                                                                                                             Y_test,
-                                                                                                             self.initial,
-                                                                                                             n_q,
-                                                                                                             cls=model_function,
-                                                                                                             name=model_name)
+                [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model = self.AL_strategy(X_train,
+                                                                                                           X_test,
+                                                                                                           Y_train,
+                                                                                                           Y_test,
+                                                                                                           self.initial,
+                                                                                                           n_q,
+                                                                                                           cls=model_function,
+                                                                                                           name=model_name)
                 performance_stats_AL.append(
-                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_n_al])
+                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al])
 
                 cont_tb = mcnemar_table(y_target=Y_test,
                                         y_model1=y_non_AL_model,
@@ -607,8 +612,7 @@ if __name__ == "__main__":
                                sampling=sampling_u,
                                run_butina=args.butina,
                                run_scaf_split=args.scaf_split,
-                               run_sampling=args.run_sampling,
+                               run_sampling=args.run_sampling
                                committee=args.committee)
     ModelInstince.run()
-
 
