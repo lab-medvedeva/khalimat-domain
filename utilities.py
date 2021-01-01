@@ -46,14 +46,6 @@ SAMPLING = {'SMOTE': SMOTE(),
 BATCH_MODE = {True: uncertainty_batch_sampling,
               False: uncertainty_sampling}
 
-#
-# AL_STRATEGY = {'GradientBoosting': uncertainty_sampling,
-#                      'CatBoostClassifier': uncertainty_sampling,
-#                      'RandomForestClassifier': uncertainty_sampling,
-#                      'SVC': SVC(probability=True), 'GaussianNB': GaussianNB(),
-#                      'ExtraTreesClassifier': ExtraTreesClassifier(),
-#                      'LGBM': uncertainty_sampling}
-#
 METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1', 'MCC']
 
 

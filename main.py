@@ -17,10 +17,7 @@ from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, \
     RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-<<<<<<< HEAD
-=======
 
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.metrics import roc_auc_score, confusion_matrix, accuracy_score, \
@@ -43,25 +40,19 @@ from modAL.disagreement import vote_entropy_sampling
 from modAL.batch import ranked_batch
 
 
-<<<<<<< HEAD
 
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
 from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, BATCH_MODE
-=======
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
 from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 
 # Importing lightgbm to train classifier
 from lightgbm import LGBMClassifier
 import optuna.integration.lightgbm as lgb
 from xgboost import XGBClassifier
-<<<<<<< HEAD
-=======
 
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 import xgboost as xgb
 
 #  Importing packages to enable processing of chemical structures
@@ -73,11 +64,8 @@ from rdkit import RDLogger
 
 #  Importing package to filter out warnings
 import warnings
-<<<<<<< HEAD
 # import threading
-=======
 import threading
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 
 # from collections import Counter
 # from itertools import combinations
@@ -86,10 +74,7 @@ from mlxtend.evaluate import mcnemar_table, mcnemar
 #  Importing modules and packages for model tunning
 import optuna
 from hyperopt import tpe
-<<<<<<< HEAD
-=======
 from scipy import stats
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 import time
 
 RDLogger.DisableLog('rdApp.*')
@@ -100,7 +85,7 @@ class TrainModel:
     """
     A class to build a binary classification model
     for cheminformatics
-BATCH_MODE
+
     Attributes
     __________
     dataset: pd.DataFrame
@@ -223,12 +208,9 @@ BATCH_MODE
         self.run_sampling = run_sampling
         self.committee = committee
         self.max_mcc_data_percent = None
-<<<<<<< HEAD
         self.batch_mode = batch_mode
         self.batch_n = n_batch
         self.class_balance = None
-=======
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 
     def run(self):
         time_zero = time.time()
@@ -239,11 +221,8 @@ BATCH_MODE
         time_fit = time.time()
         print('It took {} seconds to fit models'.format(int(time_fit - time_descr)))
         self.calculate_t_test()
-<<<<<<< HEAD
         # print(self.max_mcc_data_percent)
-=======
         print(self.max_mcc_data_percent)
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 
     def calculate_descriptors(self):
         """
@@ -447,19 +426,13 @@ BATCH_MODE
         max_mcc = max(AL_mcc_scores)
         performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
         max_mcc_index = np.argmax(AL_mcc_scores)
-<<<<<<< HEAD
         final_X_train, final_Y_train = X[0: max_mcc_index*self.batch_n + n_initial, ], Y[0: max_mcc_index*self.batch_n + n_initial, ]
-=======
         final_X_train, final_Y_train = X[0: max_mcc_index + n_initial, ], Y[0: max_mcc_index + n_initial, ]
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
         if self.max_mcc_data_percent is None:
             self.max_mcc_data_percent = []
         self.max_mcc_data_percent.append((final_X_train.shape[0] / X_train.shape[0]) * 100)
 
-<<<<<<< HEAD
-=======
         print(final_X_train.shape[0])
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
         final_cls = cls
         final_cls.fit(final_X_train, final_Y_train)
         predicted_labels = final_cls.predict(X_test)
@@ -576,17 +549,15 @@ BATCH_MODE
                 n_q = self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial)
                 [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model = self.AL_strategy(X_train,
                                                                                                            X_test,
+
                                                                                                            Y_train,
                                                                                                            Y_test,
                                                                                                            self.initial,
                                                                                                            n_q,
                                                                                                            cls=model_function,
-<<<<<<< HEAD
                                                                                                            name=model_name,
                                                                                                            q_strategy=BATCH_MODE[self.batch_mode])
-=======
                                                                                                            name=model_name)
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
                 performance_stats_AL.append(
                     [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al])
 
@@ -680,15 +651,12 @@ if __name__ == "__main__":
                                sampling=sampling_u,
                                run_butina=args.butina,
                                run_scaf_split=args.scaf_split,
-<<<<<<< HEAD
                                run_sampling=args.run_sampling,
                                committee=args.committee,
                                batch_mode=args.batch_mode,
                                n_batch=n_batch)
     ModelInstince.run()
-=======
                                run_sampling=args.run_sampling
                                committee=args.committee)
     ModelInstince.run()
 
->>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
