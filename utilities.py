@@ -20,8 +20,12 @@ from sklearn.svm import SVC
 # from catboost import CatBoostClassifier
 
 from modAL.uncertainty import uncertainty_sampling
+from modAL.batch import uncertainty_batch_sampling
+
 from imblearn.over_sampling import ADASYN, SMOTE  # upsampling
 from imblearn.under_sampling import CondensedNearestNeighbour, InstanceHardnessThreshold  # downsampling
+
+
 
 
 
@@ -39,6 +43,8 @@ SAMPLING = {'SMOTE': SMOTE(),
             'ADASYN': ADASYN(),
             'CondensedNearestNeighbour': CondensedNearestNeighbour(random_state=0),
             'InstanceHardnessThreshold': InstanceHardnessThreshold(random_state=42)}
+BATCH_MODE = {True: uncertainty_batch_sampling,
+              False: uncertainty_sampling}
 
 #
 # AL_STRATEGY = {'GradientBoosting': uncertainty_sampling,

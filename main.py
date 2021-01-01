@@ -17,33 +17,51 @@ from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, \
     RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
+<<<<<<< HEAD
+=======
 
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.metrics import roc_auc_score, confusion_matrix, accuracy_score, \
-    f1_score, fbeta_score
+    f1_score, fbeta_score, pairwise_distances
+
 from scipy.stats import ttest_ind
+from scipy import stats
+
 
 #  Importing module for imbalanced learning
 from imblearn.over_sampling import ADASYN, SMOTE  # up-sampling
 from imblearn.under_sampling import CondensedNearestNeighbour  # down-sampling
 
-from imblearn.under_sampling import CondensedNearestNeighbour  # downsampling
 
 #  Importing module for active learning
 from modAL.models import ActiveLearner, Committee
-from modAL.uncertainty import uncertainty_sampling
+from modAL.batch import uncertainty_batch_sampling
+from modAL.uncertainty import uncertainty_sampling, classifier_uncertainty
 from modAL.disagreement import vote_entropy_sampling
+from modAL.batch import ranked_batch
+
+
+<<<<<<< HEAD
 
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
+from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, BATCH_MODE
+=======
+# Importing modules to calculate confidence intervals and descriptors
+from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
 from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 
 # Importing lightgbm to train classifier
 from lightgbm import LGBMClassifier
 import optuna.integration.lightgbm as lgb
 from xgboost import XGBClassifier
+<<<<<<< HEAD
+=======
 
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 import xgboost as xgb
 
 #  Importing packages to enable processing of chemical structures
@@ -55,16 +73,23 @@ from rdkit import RDLogger
 
 #  Importing package to filter out warnings
 import warnings
+<<<<<<< HEAD
+# import threading
+=======
 import threading
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 
-from collections import Counter
-from itertools import combinations
+# from collections import Counter
+# from itertools import combinations
 from mlxtend.evaluate import mcnemar_table, mcnemar
 
 #  Importing modules and packages for model tunning
 import optuna
 from hyperopt import tpe
+<<<<<<< HEAD
+=======
 from scipy import stats
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 import time
 
 RDLogger.DisableLog('rdApp.*')
@@ -75,7 +100,7 @@ class TrainModel:
     """
     A class to build a binary classification model
     for cheminformatics
-
+BATCH_MODE
     Attributes
     __________
     dataset: pd.DataFrame
@@ -162,6 +187,7 @@ class TrainModel:
     N_BITS = 2048  # Number of bits
     M_R = 3  # Morgan Fingerprint's Radius
     N_L = 3  # Number of commitee learners
+    S_L = 0.05 # p-value threshold
 
     def __init__(self, data, activity_colunm_name,
                  descriptor, models, test_split_r,
@@ -170,7 +196,9 @@ class TrainModel:
                  initial=10, run_butina=False,
                  run_scaf_split=False,
                  run_sampling=False,
-                 committee=False):
+                 committee=False,
+                 batch_mode=True,
+                 n_batch=3):
 
         self.dataset = data.copy()
         self.activity_column_name = activity_colunm_name
@@ -195,6 +223,12 @@ class TrainModel:
         self.run_sampling = run_sampling
         self.committee = committee
         self.max_mcc_data_percent = None
+<<<<<<< HEAD
+        self.batch_mode = batch_mode
+        self.batch_n = n_batch
+        self.class_balance = None
+=======
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 
     def run(self):
         time_zero = time.time()
@@ -205,7 +239,11 @@ class TrainModel:
         time_fit = time.time()
         print('It took {} seconds to fit models'.format(int(time_fit - time_descr)))
         self.calculate_t_test()
+<<<<<<< HEAD
+        # print(self.max_mcc_data_percent)
+=======
         print(self.max_mcc_data_percent)
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
 
     def calculate_descriptors(self):
         """
@@ -326,14 +364,21 @@ class TrainModel:
 
         return committee
 
+    @staticmethod
+    def calculate_cls_balance(class_labels_np):
+        cls, counts = np.unique(class_labels_np, return_counts=True)
+        return counts[0]/counts[1]
+
     def AL_strategy(self, X_train, X_test, Y_train, Y_test,
                     n_initial, n_queries,
                     cls=RandomForestClassifier(),
                     name='RandomForestClassifier',
-                    q_strategy=uncertainty_sampling):
+                    q_strategy=uncertainty_batch_sampling):
         """
         Subsample training dataset using AL strategies
         """
+        if self.class_balance is None:
+            self.class_balance = []
 
         def random_choise(X_train, n_initial):
             initial_idx = np.random.choice(range(len(X_train)),
@@ -345,6 +390,8 @@ class TrainModel:
             initial_idx = random_choise(X_train, n_initial)
 
         X, Y = X_train[initial_idx], Y_train[initial_idx]
+
+        self.class_balance.append(self.calculate_cls_balance(Y))
 
         X_initial, y_initial = X_train[initial_idx], Y_train[initial_idx]
         X_pool, y_pool = np.delete(X_train, initial_idx, axis=0), \
@@ -370,14 +417,15 @@ class TrainModel:
         AL_auc_u_scores = [ub_d]
         AL_f_one_scores = [f_one]
 
-        for i in range(n_queries):
-            query_idx, query_inst = learner.query(X_pool)
+        for i in range(int(n_queries/self.batch_n) - 1):
+            query_idx, query_inst = learner.query(X_pool, n_instances=self.batch_n)
             if self.committee:
                 learner.teach(X_pool[query_idx].reshape(1, -1), y_pool[query_idx].reshape(1, ))
             else:
                 learner.teach(X_pool[query_idx], y_pool[query_idx])
             X = np.append(X, X_pool[query_idx], axis=0)
             Y = np.append(Y, y_pool[query_idx])
+            self.class_balance.append(self.calculate_cls_balance(Y))
             X_pool, y_pool = np.delete(X_pool, query_idx, axis=0), np.delete(y_pool, query_idx, axis=0)
             auc_d, (lb_d, ub_d) = self.auc_for_modAL(learner, X_test, Y_test)
             AL_auc_scores.append(auc_d)
@@ -399,12 +447,19 @@ class TrainModel:
         max_mcc = max(AL_mcc_scores)
         performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
         max_mcc_index = np.argmax(AL_mcc_scores)
+<<<<<<< HEAD
+        final_X_train, final_Y_train = X[0: max_mcc_index*self.batch_n + n_initial, ], Y[0: max_mcc_index*self.batch_n + n_initial, ]
+=======
         final_X_train, final_Y_train = X[0: max_mcc_index + n_initial, ], Y[0: max_mcc_index + n_initial, ]
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
         if self.max_mcc_data_percent is None:
             self.max_mcc_data_percent = []
         self.max_mcc_data_percent.append((final_X_train.shape[0] / X_train.shape[0]) * 100)
 
+<<<<<<< HEAD
+=======
         print(final_X_train.shape[0])
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
         final_cls = cls
         final_cls.fit(final_X_train, final_Y_train)
         predicted_labels = final_cls.predict(X_test)
@@ -526,7 +581,12 @@ class TrainModel:
                                                                                                            self.initial,
                                                                                                            n_q,
                                                                                                            cls=model_function,
+<<<<<<< HEAD
+                                                                                                           name=model_name,
+                                                                                                           q_strategy=BATCH_MODE[self.batch_mode])
+=======
                                                                                                            name=model_name)
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226
                 performance_stats_AL.append(
                     [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al])
 
@@ -556,7 +616,7 @@ class TrainModel:
             met_mean_a = self.AL_stats[met].mean()  # Calculate mean for AL
             stat, p_value = ttest_ind(self.non_AL_stats[met], self.AL_stats[met])  # Calculate stat and p-value
             p_adj = p_value * len(METRICS)  # Bonferroni correction to multiple-testing
-            sig = p_adj < 0.05
+            sig = p_adj < self.S_L
             t_test_res.append([met, met_mean_n_a, met_mean_a, stat, p_value, p_adj, sig])
 
         self.t_test = pd.DataFrame(t_test_res, columns=['Metrics', 'Mean non AL', 'Mean AL',
@@ -592,10 +652,18 @@ if __name__ == "__main__":
                     help='Run scaffold split, False or True', type=bool)
     ap.add_argument('-c', '--committee', default=False,
                     help='Make committee learner, False or True', type=bool)
+    ap.add_argument('-b_m', '--batch_mode', required=False, default=True,
+                    help='Run batch selection, False or True', type=bool)
+    ap.add_argument('-b_n', '--n_batch', required=False, default=3,
+                    help='Number of samples in the bath', type=int)
     args = ap.parse_args()
     models = {}
     for m in args.models:
         models[m] = MODELS[m]
+    if args.batch_mode:
+        n_batch = args.n_batch
+    else:
+        n_batch = 1
 
     sampling_u = SAMPLING[args.sampling]
 
@@ -612,7 +680,15 @@ if __name__ == "__main__":
                                sampling=sampling_u,
                                run_butina=args.butina,
                                run_scaf_split=args.scaf_split,
+<<<<<<< HEAD
+                               run_sampling=args.run_sampling,
+                               committee=args.committee,
+                               batch_mode=args.batch_mode,
+                               n_batch=n_batch)
+    ModelInstince.run()
+=======
                                run_sampling=args.run_sampling
                                committee=args.committee)
     ModelInstince.run()
 
+>>>>>>> bed230f517e513469f46bd0b7a9f29ee80c75226

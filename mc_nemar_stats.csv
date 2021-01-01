@@ -1,0 +1,11 @@
+,Model name,Iteration,chi-squared,p-value
+0,RandomForestClassifier,0,5,0.9999999999999997
+1,RandomForestClassifier,1,3,0.09228515625000003
+2,RandomForestClassifier,2,2,0.6875000000000002
+3,RandomForestClassifier,3,7,1.0
+4,RandomForestClassifier,4,4,0.7539062500000002
+5,RandomForestClassifier,5,6,0.7905273437500004
+6,RandomForestClassifier,6,5,0.9999999999999997
+7,RandomForestClassifier,7,0,0.015625
+8,RandomForestClassifier,8,3,0.3437499999999999
+9,RandomForestClassifier,9,2,1.0

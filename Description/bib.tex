@@ -9,7 +9,7 @@
 
 
 %Title, date an author of the document
-\title{Weekly (not in this case) Update}
+\title{Update}
 % \author{Khalimat Murtazalieva}
 
 %Begining of the document
@@ -96,6 +96,23 @@ Revisit the scaffold-based train/test splitting to generate more difficult machi
 I decided to implement \href{https://www.rdkit.org/docs/source/rdkit.ML.Cluster.Butina.html}{RDKit butina clustering algorithm}\cite{butina1999unsupervised}, since \href{https://imbalanced-learn.org/stable/install.html}{I need scikit-learn 0.23 in environment to run imbalanced-learn}, but current deepchem version is incompatible with scikit-learn 0.23 \href{https://github.com/deepchem/deepchem/issues/1861}{(see. issue here, Bharath kindly informed me that I can use nightly build, but I have already implemented functions based on butina clustering)}. The current version of butina split include in the test set only molecules which are "lonely" in their clusters, so we preclude the case when training set include many molecules that are very similar to the ones in the test set (I used function written by Patrick Walters to generate clusters, please, see butina\_cluster in utilities.py and wrote a function split\_with\_butina in main.py). I run 10-fold cross-validation with butina splitter and compared AL- non-AL models performance using paired t-test (see Fig.~\ref{fig:4}). We observe that model trained using AL strategy perform better based on all metrics. Also, see table "t-test\_stats.csv" in "./results/Butina".
 Also, I adapted ScaffoldSplitter code from deepchem and run pipepline using ScaffoldSplitter. AL based models perform better (see Fig.~\ref{fig:4}).
 
+\section{Task 5}
+
+
+\subsection{Description}
+Identify the fraction of data at which the active learning sampling is most predictive.
+\subsection{Solution}
+I decided to run pipeline 100 times and save percentage of data used to reach the maximum MCC value. Thereby I can make a reliable estimation (see Fig.~\ref{fig:5}). The ultimate goal is to have a pipeline which reaches in 95\% of cases the maximum performance. As you can see from the figure, the estimated the 95 percentile value is 88\%.
+
+
+
+
+\medskip
+
+%Sets the bibliography style to UNSRT and imports the 
+%bibliography file "samples.bib".
+\bibliographystyle{unsrt}
+\bibliography{sample}
 
 
 
@@ -129,12 +146,11 @@ Also, I adapted ScaffoldSplitter code from deepchem and run pipepline using Scaf
     \label{fig:4}
 \end{figure}
 
-
-\medskip
-
-%Sets the bibliography style to UNSRT and imports the 
-%bibliography file "samples.bib".
-\bibliographystyle{unsrt}
-\bibliography{sample}
+\begin{figure}
+    \centering
+    \includegraphics[keepaspectratio=true, scale=0.47]{images/percent_of_data_max_MCC.png}
+    \caption{Distribution of \% of data used to reach the max MCC value}
+    \label{fig:5}
+\end{figure}
 
 \end{document}
