@@ -201,7 +201,7 @@ class TrainModel:
         self.test_predicted = None
         self.non_AL_stats = None
         self.AL_stats = None
-        self.cv_n = 100
+        self.cv_n = 10
         self.t_test = None
         self.run_butina = run_butina
         self.run_scaf_split = run_scaf_split
@@ -549,7 +549,6 @@ class TrainModel:
                 n_q = self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial)
                 [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model = self.AL_strategy(X_train,
                                                                                                            X_test,
-
                                                                                                            Y_train,
                                                                                                            Y_test,
                                                                                                            self.initial,
@@ -557,7 +556,6 @@ class TrainModel:
                                                                                                            cls=model_function,
                                                                                                            name=model_name,
                                                                                                            q_strategy=BATCH_MODE[self.batch_mode])
-                                                                                                           name=model_name)
                 performance_stats_AL.append(
                     [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al])
 
@@ -645,7 +643,7 @@ if __name__ == "__main__":
 
     dataset = pd.read_csv(dataset_path, index_col=0)
 
-    ModelInstince = TrainModel(data=dataset, activity_colunm_name=args.activity_col,
+    ModelInstance = TrainModel(data=dataset, activity_colunm_name=args.activity_col,
                                descriptor=args.descriptor, models=models,
                                test_split_r=args.test_split_ratio,
                                sampling=sampling_u,
@@ -655,8 +653,4 @@ if __name__ == "__main__":
                                committee=args.committee,
                                batch_mode=args.batch_mode,
                                n_batch=n_batch)
-    ModelInstince.run()
-                               run_sampling=args.run_sampling
-                               committee=args.committee)
-    ModelInstince.run()
-
+    ModelInstance.run()
