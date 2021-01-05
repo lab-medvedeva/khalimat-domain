@@ -44,7 +44,7 @@ from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate
 from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, BATCH_MODE
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
-from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING
+from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, str2bool
 
 # Importing lightgbm to train classifier
 from lightgbm import LGBMClassifier
@@ -652,8 +652,9 @@ if __name__ == "__main__":
                     help='Run scaffold split, False or True', type=bool)
     ap.add_argument('-c', '--committee', default=False,
                     help='Make committee learner, False or True', type=bool)
-    ap.add_argument('-b_m', '--batch_mode', required=False, default=True,
-                    help='Run batch selection, False or True', type=bool)
+    ap.add_argument('-b_m', '--batch_mode', required=False, default=False,
+                    help='Run batch selection, False or True', type=bool,
+                    action=argparse.BooleanOptionalAction)
     ap.add_argument('-b_n', '--n_batch', required=False, default=3,
                     help='Number of samples in the bath', type=int)
     args = ap.parse_args()
