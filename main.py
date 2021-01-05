@@ -10,6 +10,8 @@ import numpy as np
 # import matplotlib
 # import matplotlib.pyplot as plt
 # from IPython import display
+import plotly.graph_objects as go
+
 
 #  Importing modules from sklearn
 import sklearn
@@ -26,11 +28,9 @@ from sklearn.metrics import roc_auc_score, confusion_matrix, accuracy_score, \
 from scipy.stats import ttest_ind
 from scipy import stats
 
-
 #  Importing module for imbalanced learning
 from imblearn.over_sampling import ADASYN, SMOTE  # up-sampling
 from imblearn.under_sampling import CondensedNearestNeighbour  # down-sampling
-
 
 #  Importing module for active learning
 from modAL.models import ActiveLearner, Committee
@@ -38,8 +38,6 @@ from modAL.batch import uncertainty_batch_sampling
 from modAL.uncertainty import uncertainty_sampling, classifier_uncertainty
 from modAL.disagreement import vote_entropy_sampling
 from modAL.batch import ranked_batch
-
-
 
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
@@ -64,8 +62,6 @@ from rdkit import RDLogger
 
 #  Importing package to filter out warnings
 import warnings
-# import threading
-import threading
 
 # from collections import Counter
 # from itertools import combinations
@@ -172,7 +168,8 @@ class TrainModel:
     N_BITS = 2048  # Number of bits
     M_R = 3  # Morgan Fingerprint's Radius
     N_L = 3  # Number of commitee learners
-    S_L = 0.05 # p-value threshold
+    S_L = 0.05  # p-value threshold
+    P_R_MCC = 0.88 # The portion of data to reach the max MCC
 
     def __init__(self, data, activity_colunm_name,
                  descriptor, models, test_split_r,
@@ -211,6 +208,7 @@ class TrainModel:
         self.batch_mode = batch_mode
         self.batch_n = n_batch
         self.class_balance = None
+        print(self.batch_mode)
 
     def run(self):
         time_zero = time.time()
@@ -222,7 +220,7 @@ class TrainModel:
         print('It took {} seconds to fit models'.format(int(time_fit - time_descr)))
         self.calculate_t_test()
         # print(self.max_mcc_data_percent)
-        print(self.max_mcc_data_percent)
+        self.make_radar_chart()
 
     def calculate_descriptors(self):
         """
@@ -346,7 +344,7 @@ class TrainModel:
     @staticmethod
     def calculate_cls_balance(class_labels_np):
         cls, counts = np.unique(class_labels_np, return_counts=True)
-        return counts[0]/counts[1]
+        return counts[0] / counts[1]
 
     def AL_strategy(self, X_train, X_test, Y_train, Y_test,
                     n_initial, n_queries,
@@ -396,8 +394,11 @@ class TrainModel:
         AL_auc_u_scores = [ub_d]
         AL_f_one_scores = [f_one]
 
-        for i in range(int(n_queries/self.batch_n) - 1):
-            query_idx, query_inst = learner.query(X_pool, n_instances=self.batch_n)
+        for i in range(int(n_queries / self.batch_n) - 1):
+            if self.batch_mode:
+                query_idx, query_inst = learner.query(X_pool, n_instances=self.batch_n)
+            else:
+                query_idx, query_inst = learner.query(X_pool)
             if self.committee:
                 learner.teach(X_pool[query_idx].reshape(1, -1), y_pool[query_idx].reshape(1, ))
             else:
@@ -426,13 +427,13 @@ class TrainModel:
         max_mcc = max(AL_mcc_scores)
         performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
         max_mcc_index = np.argmax(AL_mcc_scores)
-        final_X_train, final_Y_train = X[0: max_mcc_index*self.batch_n + n_initial, ], Y[0: max_mcc_index*self.batch_n + n_initial, ]
+        final_X_train, final_Y_train = X[0: max_mcc_index * self.batch_n + n_initial, ], Y[0: max_mcc_index * self.batch_n + n_initial, ]
         final_X_train, final_Y_train = X[0: max_mcc_index + n_initial, ], Y[0: max_mcc_index + n_initial, ]
         if self.max_mcc_data_percent is None:
             self.max_mcc_data_percent = []
         self.max_mcc_data_percent.append((final_X_train.shape[0] / X_train.shape[0]) * 100)
 
-        print(final_X_train.shape[0])
+        # print(final_X_train.shape[0])
         final_cls = cls
         final_cls.fit(final_X_train, final_Y_train)
         predicted_labels = final_cls.predict(X_test)
@@ -474,7 +475,7 @@ class TrainModel:
         if len(uniq_cluster_ids) < int(df.shape[0] * split_r):
             print('Unable to split dataset based on butina clustering')
         test_set = df[df.cluster.isin(uniq_cluster_ids)].sample(n_samples_test)
-        train_set = df[~df['Cdiv ID'].isin(test_set['Cdiv ID'].tolist())]
+        train_set = df[~df['Cdiv ID'].isin(test_set['Cdiv ID'].tolist())]  # Remove hard coded label later
         X_test, Y_test = self.transform_X(test_set[x_column_name]), \
                          self.transform_X(test_set[y_column_name])
         X_train, Y_train = self.transform_X(train_set[x_column_name]), \
@@ -546,7 +547,7 @@ class TrainModel:
                     [i, model_name, lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al, mcc_n_al])
 
                 # Run AL model and save the results
-                n_q = self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial)
+                n_q = int(self.P_R_MCC * self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial))
                 [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model = self.AL_strategy(X_train,
                                                                                                            X_test,
                                                                                                            Y_train,
@@ -555,7 +556,9 @@ class TrainModel:
                                                                                                            n_q,
                                                                                                            cls=model_function,
                                                                                                            name=model_name,
-                                                                                                           q_strategy=BATCH_MODE[self.batch_mode])
+                                                                                                           q_strategy=
+                                                                                                           BATCH_MODE[
+                                                                                                               self.batch_mode])
                 performance_stats_AL.append(
                     [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al])
 
@@ -573,7 +576,7 @@ class TrainModel:
                                                                'chi-squared', 'p-value'])
         self.non_AL_stats.to_csv('non_AL_stats.csv')
         self.AL_stats.to_csv('AL_stats.csv')
-        mc_nemar_stats.to_csv(('mc_nemar_stats.csv'))
+        mc_nemar_stats.to_csv('mc_nemar_stats.csv')
 
     def calculate_t_test(self):
         """
@@ -593,6 +596,34 @@ class TrainModel:
                                                         'is_significant'])  # Save results as a DataFrame
         print(self.t_test)
         self.t_test.to_csv('t-test_stats.csv')  # Save table with results
+
+    def make_radar_chart(self):
+        AL = self.t_test['Mean AL']
+        non_AL = self.t_test['Mean non AL']
+
+        radar = go.Figure()
+        radar.add_trace(go.Scatterpolar(
+            r=AL,
+            theta=METRICS,
+            fill='toself',
+            name='AL strategy'
+        ))
+        radar.add_trace(go.Scatterpolar(
+            r=non_AL,
+            theta=METRICS,
+            fill='toself',
+            name='Non-AL strategy'
+        ))
+
+        radar.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 1]
+                )),
+            showlegend=True
+        )
+        radar.write_image("AL_non_AL_performance.svg")
 
 
 if __name__ == "__main__":
