@@ -102,9 +102,27 @@ Also, I adapted ScaffoldSplitter code from deepchem and run pipepline using Scaf
 \subsection{Description}
 Identify the fraction of data at which the active learning sampling is most predictive.
 \subsection{Solution}
-I decided to run pipeline 100 times and save percentage of data used to reach the maximum MCC value. Thereby I can make a reliable estimation (see Fig.~\ref{fig:5}). The ultimate goal is to have a pipeline which reaches in 95\% of cases the maximum performance. As you can see from the figure, the estimated the 95 percentile value is 88\%.
+I decided to run pipeline 100 times and save percentage of data used to reach the maximum MCC value. Thereby I can make a reliable estimation (see Fig.~\ref{fig:5}). The ultimate goal is to have a pipeline which reaches in 95\% of cases the maximum performance. As you can see from the figure, the estimated the 95 percentile value is 88\%. Therefore, I implemented a naïve stopping criteria: 88 \% of data. 
 
+\section{Task 6}
 
+\subsection{Description}
+Add parallelization.
+\subsection{Solution}
+When I tried to change code structure and add Parallel from joblib in cycle I run into issues (\href{https://github.com/joblib/joblib/issues/867}{"Could not pickle the task to send it to the workers"}). Also, I found some advice \href{https://stackoverflow.com/questions/56884020/spacy-with-joblib-library-generates-pickle-picklingerror-could-not-pickle-the}{here}, but they did not help me.
+
+After, I tried to use \href{https://docs.python.org/3/library/threading.html}{threading} (I know that due to GIL problem in general multithreading is not very effective in Python, but \href{https://github.com/scikit-learn/scikit-learn/blob/42aff4e2e/sklearn/ensemble/_forest.py#L884}{RF} (the standard model in our pipeline) is rather numpy intensive (runs C code), so I I thought it could be of help). Multithreading improved time performance, but model performance dropped.
+
+Eventually, I decided just add 'n\_jobs=-1' in model initialization, so it runs faster now. For instance, it took 22 min to run the standard pipeline, even taking into account that my laptop has broken down, so I am using another one with much less computational powers (I do not have the exact estimation, but it took approximately an hour before on my personal laptop). 
+
+If I am not mistaken, the time complexity to build RF model is linearithmic $O(n\log{}n)$, where $n$ is the number of samples. In the case of AL-pipeline it is $O(n\log{}n)!$ (I am not sure that there is such notation, maybe just factorial, $O(n!)$). It takes 22 minutes to run the pipeline with $\approx 1000$ samples. Tropha's beta-lactamase dataset consists of $\approx60000$ samples. So the estimated time to run the pipeline (if my calculations are correct) with Tropha's beta-lactamase dataset on my current laptop is 60!*22 min.
+
+\section{Task 7}
+
+\subsection{Description}
+Add bath mode.
+\subsection{Solution}
+I added \href{https://modal-python.readthedocs.io/en/latest/content/query_strategies/ranked_batch_mode.html}{uncertainty batch sampling} to pipeline and tried to run it with different batch sizes (I observed anticorrelation between batch size and model performance, so I stick with a bath size 3). Even though the AL-strategy increases the mean values of all metrics, it only statistically significant for F1 and Accuracy. I have not plotted a radar chart for this run (as my laptop is broken, I do not have access to the class which was built on matplotlib, but I currently added function to plot radar chart with a package \href{https://plotly.com/}{plotly}, but I did not add a new plot to the update, as it has different style).
 
 
 \medskip
