@@ -5,16 +5,7 @@ Example of command to run script:
 ```$ python main.py -p '/home/khali/Desktop/SCAMmer/' -f 'SCAMS_filtered.csv'```
 
 I used [t-test for means of two independent samples](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_ind_from_stats.html), since our AL and non-AL models are trained on different data 
-(AL training set is a subset of non-AL training set). I can not use [5x2cv paired t test](http://rasbt.github.io/mlxtend/user_guide/evaluate/paired_ttest_5x2cv/), since it requires the
- same training sets for models:
-```
-t, p = paired_ttest_5x2cv(estimator1=clf1,
-                          estimator2=clf2,
-                          X=X, y=y,
-                          random_seed=1)
-``` 
-
-
+(AL training set is a subset of non-AL training set). 
 
 # Research Summary
 
@@ -56,17 +47,26 @@ To ensure that our hypothesis is generalizable and not limited to a single use c
   - GaussianNB
   - SVC
 
-# Update
-I calculated t-stats. They are presented below
+# Results
+Results could be found [here](Description/Update.pdf)
 
-| Metrics        | p_adj           | significant  |
-| ------------- |:-------------:| -----:|
-| AUC_LB      | 4.04 | False |
-| AUC     | 4.72     |   False |
-| AUC_UB | 4.47     |    False |
-| Accuracy | 0.15     |    False |
-| F1 | 0.00045     |    True |
-| MCC | 0.00066     |    True |
+[comment]: <> (I calculated t-stats. They are presented below)
+
+[comment]: <> (| Metrics        | p_adj           | significant  |)
+
+[comment]: <> (| ------------- |:-------------:| -----:|)
+
+[comment]: <> (| AUC_LB      | 4.04 | False |)
+
+[comment]: <> (| AUC     | 4.72     |   False |)
+
+[comment]: <> (| AUC_UB | 4.47     |    False |)
+
+[comment]: <> (| Accuracy | 0.15     |    False |)
+
+[comment]: <> (| F1 | 0.00045     |    True |)
+
+[comment]: <> (| MCC | 0.00066     |    True |)
 
 
 

@@ -2,6 +2,7 @@ from __future__ import print_function
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
+import argparse
 
 from sklearn.utils import resample
 
@@ -24,9 +25,6 @@ from modAL.batch import uncertainty_batch_sampling
 
 from imblearn.over_sampling import ADASYN, SMOTE  # upsampling
 from imblearn.under_sampling import CondensedNearestNeighbour, InstanceHardnessThreshold  # downsampling
-
-
-
 
 
 DESCRIPTORS = {'MorganFingerprint': AllChem.GetMorganFingerprintAsBitVect,
@@ -358,6 +356,7 @@ def generate_scaffolds(dataset):
             scaffolds.items(), key=lambda x: (len(x[1]), x[1][0]), reverse=True)
     ]
     return scaffold_sets
+
 def str2bool(v):
     if isinstance(v, bool):
        return v

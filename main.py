@@ -4,6 +4,7 @@ import math
 
 import pandas as pd
 import numpy as np
+import tqdm
 
 #  Importing packages for visualization
 # import seaborn as sns
@@ -208,9 +209,12 @@ class TrainModel:
         self.batch_mode = batch_mode
         self.batch_n = n_batch
         self.class_balance = None
-        print(self.batch_mode)
+        self.result_dir_path = None
 
     def run(self):
+        folder_name = str(input('Enter study name: '))
+        self.result_dir_path = Path.cwd() / 'Results' / folder_name
+        Path.mkdir(self.result_dir_path)
         time_zero = time.time()
         self.calculate_descriptors()
         time_descr = time.time()
@@ -343,6 +347,17 @@ class TrainModel:
 
     @staticmethod
     def calculate_cls_balance(class_labels_np):
+        """
+        Calculate class balance for AL
+        Parameters
+        ----------
+        class_labels_np: np.array with labels
+
+        Returns
+        -------
+        class balance
+
+        """
         cls, counts = np.unique(class_labels_np, return_counts=True)
         return counts[0] / counts[1]
 
@@ -456,6 +471,16 @@ class TrainModel:
 
     @staticmethod
     def make_df_with_stats(df_with_stats, performance_stats):
+        """
+        Make dataframe with performance stats
+
+        Parameters
+        ----------
+        df_with_stats: A dataframe or None object with performance stats over passed iterations
+        performance_stats: iteration stats
+
+
+        """
         if df_with_stats is None:
             df_with_stats = pd.DataFrame(performance_stats,
                                          columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
@@ -469,6 +494,9 @@ class TrainModel:
 
     def split_with_butina(self, df, split_r, x_column_name='MorganFingerprint',
                           y_column_name='agg?'):
+        """
+        Split dataset using butina clustering algorithm
+        """
         n_samples_test = int(df.shape[0] * split_r)
         df['cluster'] = butina_cluster(df['mol_obj'])
         uniq_cluster_ids = df['cluster'].value_counts().loc[lambda x: x == 1].index.tolist()
@@ -484,6 +512,9 @@ class TrainModel:
 
     def split_with_scaffold_splitter(self, scams_df, split_r, x_column_name='MorganFingerprint',
                                      y_column_name='agg?'):
+        """
+        Split dataset using scaffold splitter
+        """
         n_samples_test = int(scams_df.shape[0] * split_r)
         scaffold_sets = generate_scaffolds(scams_df)
         train_cutoff = (1 - self.test_split_r) * scams_df.shape[0]
@@ -503,6 +534,9 @@ class TrainModel:
 
     def non_AL_strategy(self, model_name, model_function,
                         X_train, Y_train, X_test, Y_test):
+        """
+        Run non AL strategy
+        """
 
         SCAMsCls = model_function
         if self.run_sampling:
@@ -528,7 +562,7 @@ class TrainModel:
         performance_stats_AL = []
         mc_nemar_stats = []
         for model_name, model_function in self.models.items():
-            for i in range(self.cv_n):
+            for i in tqdm.tqdm(range(self.cv_n)):
                 if self.run_butina:
                     X_train, X_test, Y_train, Y_test = self.split_with_butina(self.dataset, self.test_split_r)
                 if self.run_scaf_split:
@@ -574,9 +608,9 @@ class TrainModel:
 
         mc_nemar_stats = pd.DataFrame(mc_nemar_stats, columns=['Model name', 'Iteration',
                                                                'chi-squared', 'p-value'])
-        self.non_AL_stats.to_csv('non_AL_stats.csv')
-        self.AL_stats.to_csv('AL_stats.csv')
-        mc_nemar_stats.to_csv('mc_nemar_stats.csv')
+        self.non_AL_stats.to_csv(self.result_dir_path / 'non_AL_stats.csv')
+        self.AL_stats.to_csv(self.result_dir_path / 'AL_stats.csv')
+        mc_nemar_stats.to_csv(self.result_dir_path / 'mc_nemar_stats.csv')
 
     def calculate_t_test(self):
         """
@@ -595,9 +629,12 @@ class TrainModel:
                                                         't-test stat', 'p-value', 'p_adj',
                                                         'is_significant'])  # Save results as a DataFrame
         print(self.t_test)
-        self.t_test.to_csv('t-test_stats.csv')  # Save table with results
+        self.t_test.to_csv(self.result_dir_path / 't-test_stats.csv')  # Save table with results
 
     def make_radar_chart(self):
+        """
+        Make a radar chart with performance of AL and non-AL models
+        """
         AL = self.t_test['Mean AL']
         non_AL = self.t_test['Mean non AL']
 
@@ -614,7 +651,6 @@ class TrainModel:
             fill='toself',
             name='Non-AL strategy'
         ))
-
         radar.update_layout(
             polar=dict(
                 radialaxis=dict(
@@ -623,7 +659,8 @@ class TrainModel:
                 )),
             showlegend=True
         )
-        radar.write_image("AL_non_AL_performance.svg")
+        radar_plot_path = self.result_dir_path / 'AL_non_AL_performance.svg'
+        radar.write_image(str(radar_plot_path))
 
 
 if __name__ == "__main__":
@@ -645,13 +682,17 @@ if __name__ == "__main__":
     ap.add_argument('-sp', '--test_split_ratio', required=False,
                     default=0.3, type=float)
     ap.add_argument('-b', '--butina', default=False,
-                    help='Run butina algorithm, False or True', type=bool)
+                    help='Run butina algorithm, False or True', type=bool,
+                    action=argparse.BooleanOptionalAction)
     ap.add_argument('-rs', '--run_sampling', required=False, default=False,
-                    help='Run up- or downsampling', type=bool)
+                    help='Run up- or downsampling', type=bool,
+                    action=argparse.BooleanOptionalAction)
     ap.add_argument('-ss', '--scaf_split', default=False,
-                    help='Run scaffold split, False or True', type=bool)
+                    help='Run scaffold split, False or True', type=bool,
+                    action=argparse.BooleanOptionalAction)
     ap.add_argument('-c', '--committee', default=False,
-                    help='Make committee learner, False or True', type=bool)
+                    help='Make committee learner, False or True', type=bool,
+                    action=argparse.BooleanOptionalAction)
     ap.add_argument('-b_m', '--batch_mode', required=False, default=False,
                     help='Run batch selection, False or True', type=bool,
                     action=argparse.BooleanOptionalAction)
