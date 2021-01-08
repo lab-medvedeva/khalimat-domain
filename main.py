@@ -443,7 +443,6 @@ class TrainModel:
         performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
         max_mcc_index = np.argmax(AL_mcc_scores)
         final_X_train, final_Y_train = X[0: max_mcc_index * self.batch_n + n_initial, ], Y[0: max_mcc_index * self.batch_n + n_initial, ]
-        final_X_train, final_Y_train = X[0: max_mcc_index + n_initial, ], Y[0: max_mcc_index + n_initial, ]
         if self.max_mcc_data_percent is None:
             self.max_mcc_data_percent = []
         self.max_mcc_data_percent.append((final_X_train.shape[0] / X_train.shape[0]) * 100)
