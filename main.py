@@ -45,7 +45,7 @@ from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate
 from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, BATCH_MODE
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
-from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, str2bool
+from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, str2bool, rm_tree
 
 # Importing lightgbm to train classifier
 from lightgbm import LGBMClassifier
@@ -174,7 +174,7 @@ class TrainModel:
 
     def __init__(self, data, activity_colunm_name,
                  descriptor, models, test_split_r,
-                 scaler=StandardScaler(),
+                 folder_name, scaler=StandardScaler(),
                  sampling=SMOTE(), n_features=300,
                  initial=10, run_butina=False,
                  run_scaf_split=False,
@@ -188,6 +188,8 @@ class TrainModel:
         self.descriptor = {descriptor: DESCRIPTORS[descriptor]}
         self.models = models
         self.test_split_r = test_split_r
+        self.folder_name = folder_name
+        self.result_dir_path = Path.cwd() / 'Results' / self.folder_name
         self.scaler = scaler
         self.sampling = sampling
         self.n_features = n_features
@@ -209,11 +211,16 @@ class TrainModel:
         self.batch_mode = batch_mode
         self.batch_n = n_batch
         self.class_balance = None
-        self.result_dir_path = None
+
 
     def run(self):
-        folder_name = str(input('Enter study name: '))
-        self.result_dir_path = Path.cwd() / 'Results' / folder_name
+        if Path.is_dir(self.result_dir_path):
+            delete_existing_path = str2bool(input('Path exist. Do you want to delete the existing path and create the new? Please, enter yes or no: '))
+            if delete_existing_path:
+                rm_tree(self.result_dir_path)
+            else:
+                new_study = input('Please, enter new name: ')
+                self.result_dir_path = Path.cwd() / 'Results' / new_study
         Path.mkdir(self.result_dir_path)
         time_zero = time.time()
         self.calculate_descriptors()
@@ -361,7 +368,7 @@ class TrainModel:
         cls, counts = np.unique(class_labels_np, return_counts=True)
         return counts[0] / counts[1]
 
-    def AL_strategy(self, X_train, X_test, Y_train, Y_test,
+    def AL_strategy(self, iteration, X_train, X_test, Y_train, Y_test,
                     n_initial, n_queries,
                     cls=RandomForestClassifier(),
                     name='RandomForestClassifier',
@@ -440,6 +447,26 @@ class TrainModel:
         max_accuracy = max(AL_accuracy_scores)
         max_f_one = max(AL_f_one_scores)
         max_mcc = max(AL_mcc_scores)
+
+        mcc_plot = go.Figure(go.Scatter(
+            x=list(range(0, n_queries)),
+            y=AL_mcc_scores
+        ))
+        mcc_plot.update_layout(
+            xaxis=dict(
+                title='Iteration',
+                tickmode='linear',
+                tick0=0.5,
+                dtick=0.75,
+                showticklabels=False
+            ),
+            yaxis=dict(
+                title='MCC value'
+            )
+        )
+        mcc_plot_path = self.result_dir_path / 'mcc_plot_iteration_{}.svg'.format(iteration)
+        mcc_plot.write_image(str(mcc_plot_path))
+
         performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
         max_mcc_index = np.argmax(AL_mcc_scores)
         final_X_train, final_Y_train = X[0: max_mcc_index * self.batch_n + n_initial, ], Y[0: max_mcc_index * self.batch_n + n_initial, ]
@@ -447,7 +474,6 @@ class TrainModel:
             self.max_mcc_data_percent = []
         self.max_mcc_data_percent.append((final_X_train.shape[0] / X_train.shape[0]) * 100)
 
-        # print(final_X_train.shape[0])
         final_cls = cls
         final_cls.fit(final_X_train, final_Y_train)
         predicted_labels = final_cls.predict(X_test)
@@ -491,18 +517,34 @@ class TrainModel:
                                                              'AUC_UB', 'Accuracy', 'F1', 'MCC'])])
         return df_with_stats
 
-    def split_with_butina(self, df, split_r, x_column_name='MorganFingerprint',
-                          y_column_name='agg?'):
+    def split_with_butina(self, df_with_mol_obj, split_r, x_column_name='MorganFingerprint',
+                          y_column_name='agg?', id_name='Cdiv ID'):
         """
         Split dataset using butina clustering algorithm
+
+        Parameters
+        ----------
+        df_with_mol_obj: pd.DataFrame with ids, mol_objects, calculated descriptors and class labels
+        split_r: int, train/test split ratio
+        id_name: str, id column name
+        x_column_name: str, descriptor column name
+        y_column_name str, class column name
+
+        Returns
+        _______
+        X_train: np.array with train data
+        X_test: np.array with test data
+        Y_train: np.array with train class labels
+        Y_test: np.array with test class labels
+
         """
-        n_samples_test = int(df.shape[0] * split_r)
-        df['cluster'] = butina_cluster(df['mol_obj'])
-        uniq_cluster_ids = df['cluster'].value_counts().loc[lambda x: x == 1].index.tolist()
-        if len(uniq_cluster_ids) < int(df.shape[0] * split_r):
+        n_samples_test = int(df_with_mol_obj.shape[0] * split_r)
+        df_with_mol_obj['cluster'] = butina_cluster(df_with_mol_obj['mol_obj'])
+        uniq_cluster_ids = df_with_mol_obj['cluster'].value_counts().loc[lambda x: x == 1].index.tolist()
+        if len(uniq_cluster_ids) < int(df_with_mol_obj.shape[0] * split_r):
             print('Unable to split dataset based on butina clustering')
-        test_set = df[df.cluster.isin(uniq_cluster_ids)].sample(n_samples_test)
-        train_set = df[~df['Cdiv ID'].isin(test_set['Cdiv ID'].tolist())]  # Remove hard coded label later
+        test_set = df_with_mol_obj[df_with_mol_obj.cluster.isin(uniq_cluster_ids)].sample(n_samples_test)
+        train_set = df_with_mol_obj[~df_with_mol_obj[id_name].isin(test_set[id_name].tolist())]  # Remove hard coded label later
         X_test, Y_test = self.transform_X(test_set[x_column_name]), \
                          self.transform_X(test_set[y_column_name])
         X_train, Y_train = self.transform_X(train_set[x_column_name]), \
@@ -581,7 +623,7 @@ class TrainModel:
 
                 # Run AL model and save the results
                 n_q = int(self.P_R_MCC * self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial))
-                [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model = self.AL_strategy(X_train,
+                [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model = self.AL_strategy(i, X_train,
                                                                                                            X_test,
                                                                                                            Y_train,
                                                                                                            Y_test,
@@ -668,6 +710,8 @@ if __name__ == "__main__":
                     help='Path to directory with dataset')  # Specify path
     ap.add_argument('-f', '--file', required=True,
                     help='Dataset file name')  # Specify dataset file name
+    ap.add_argument('-sn', '--study_name', required=True, type=str,
+                    help='Study name')
     ap.add_argument('-a', '--activity_col', required=False,
                     help='Activity column name', default='agg?')
     ap.add_argument('-d', '--descriptor', required=False,  # Specify descriptors
@@ -718,6 +762,7 @@ if __name__ == "__main__":
     ModelInstance = TrainModel(data=dataset, activity_colunm_name=args.activity_col,
                                descriptor=args.descriptor, models=models,
                                test_split_r=args.test_split_ratio,
+                               folder_name=args.study_name,
                                sampling=sampling_u,
                                run_butina=args.butina,
                                run_scaf_split=args.scaf_split,

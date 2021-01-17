@@ -32,7 +32,7 @@ DESCRIPTORS = {'MorganFingerprint': AllChem.GetMorganFingerprintAsBitVect,
                'MACCSkeys': MACCSkeys}
 
 MODELS = {'RandomForestClassifier': RandomForestClassifier(n_jobs=-1),
-          'SVC': SVC(probability=True), 'GaussianNB': GaussianNB(),
+          # 'SVC': SVC(probability=True), 'GaussianNB': GaussianNB(),
           'ExtraTreesClassifier': ExtraTreesClassifier(n_jobs=-1),
           'LGBM': LGBMClassifier(n_jobs=-1),
           'XGBClassifier': XGBClassifier(n_jobs=-1)}
@@ -366,3 +366,11 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def rm_tree(pth):
+    for child in pth.iterdir():
+        if child.is_file():
+            child.unlink()
+        else:
+            rm_tree(child)
+    pth.rmdir()
