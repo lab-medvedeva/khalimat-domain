@@ -289,7 +289,7 @@ class TrainModel:
 
     def loc_inf(self):
         """
-        Select self.n_features most informati   ve features
+        Select self.n_features most informative features
         """
         info_features = self.feature_selection(self.X_train, self.Y_train)  # Initialize feature selection
         sorted_ind_features = np.argsort(info_features)[:: -1]  # Features indices sorted by informativeness
@@ -468,7 +468,9 @@ class TrainModel:
         mcc_plot.write_image(str(mcc_plot_path))
 
         performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
+
         max_mcc_index = np.argmax(AL_mcc_scores)
+        print(max_mcc_index)
         final_X_train, final_Y_train = X[0: max_mcc_index * self.batch_n + n_initial, ], Y[0: max_mcc_index * self.batch_n + n_initial, ]
         if self.max_mcc_data_percent is None:
             self.max_mcc_data_percent = []
@@ -476,6 +478,8 @@ class TrainModel:
 
         final_cls = cls
         final_cls.fit(final_X_train, final_Y_train)
+        f_one_final, mcc_final = self.f_one_mcc_score(final_cls, X_test, Y_test)
+        print(mcc_final, max_mcc)
         predicted_labels = final_cls.predict(X_test)
 
         return performance_stats, predicted_labels
@@ -678,6 +682,13 @@ class TrainModel:
         """
         AL = self.t_test['Mean AL']
         non_AL = self.t_test['Mean non AL']
+        # Make adaptive max score
+        max_perf = max(max(AL), max(non_AL))
+        if max_perf + max_perf*0.1 > 1:
+            max_perf = 1
+        else:
+            max_perf = max_perf + max_perf * 0.1
+
 
         radar = go.Figure()
         radar.add_trace(go.Scatterpolar(
@@ -696,7 +707,7 @@ class TrainModel:
             polar=dict(
                 radialaxis=dict(
                     visible=True,
-                    range=[0, 1]
+                    range=[0, max_perf]
                 )),
             showlegend=True
         )
