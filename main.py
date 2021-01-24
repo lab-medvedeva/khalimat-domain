@@ -67,8 +67,6 @@ from mlxtend.evaluate import mcnemar_table, mcnemar
 
 
 
-
-
 RDLogger.DisableLog('rdApp.*')
 warnings.filterwarnings("ignore")
 
@@ -211,6 +209,7 @@ class TrainModel:
         self.SCAMsCls = None
         self.external_X = None
         self.external_Y = None
+        self.external_val_res = None
 
     def run(self):
         """
@@ -521,12 +520,11 @@ class TrainModel:
             AL_f_one_scores.append(f_one)
             AL_accuracy_scores.append(learner.score(X_test, Y_test))
 
-        max_auc_l = max(AL_auc_l_scores)
-        max_auc_m = max(AL_auc_scores)
-        max_auc_u = max(AL_auc_u_scores)
-        max_accuracy = max(AL_accuracy_scores)
-        max_f_one = max(AL_f_one_scores)
-        max_mcc = max(AL_mcc_scores)
+        max_auc_l, _ = self.average_stat(AL_auc_l_scores, self.W_SG, self.H_SG)
+        max_auc_m, _ = self.average_stat(AL_auc_scores, self.W_SG, self.H_SG)
+        max_auc_u, _ = self.average_stat(AL_auc_u_scores, self.W_SG, self.H_SG)
+        max_accuracy, _ = self.average_stat(AL_accuracy_scores, self.W_SG, self.H_SG)
+        max_f_one, _ = self.average_stat(AL_f_one_scores, self.W_SG, self.H_SG)
         max_mcc, max_mcc_index = self.average_stat(AL_mcc_scores, self.W_SG, self.H_SG)
 
         mcc_plot = self.make_plot(AL_mcc_scores, n_queries,
@@ -552,20 +550,10 @@ class TrainModel:
         self.final_cls = cls
         self.final_cls.fit(final_X_train, final_Y_train)
         f_one_final, mcc_final = self.f_one_mcc_score(self.final_cls, X_test, Y_test)
-        print('Max MCC: ', max_mcc, 'MCC after refit: ', mcc_final)
         predicted_labels = self.final_cls.predict(X_test)
         f_one_ext, mcc_al_ext = self.f_one_mcc_score(self.final_cls, self.external_X, self.external_Y)
         print('AL: ', f_one_ext, mcc_al_ext)
         return performance_stats, predicted_labels
-
-    # def external_validation(self):
-    #     X_to_predict = self.transform_X(self.validation_data[list(self.descriptor.keys())[0]])
-    #     Y_test = self.transform_X(self.validation_data['DLS'])
-    #     f_one_al, mcc_al = self.f_one_mcc_score(self.final_cls, X_to_predict, Y_test)
-    #     print("AL", f_one_al, mcc_al)
-    #     f_one_n_al, mcc_n_al = self.f_one_mcc_score(self.SCAMsCls, X_to_predict, Y_test)
-    #     print("non_AL", f_one_n_al, mcc_n_al)
-
 
     @staticmethod
     def calculate_iter_AL(data, spit_ratio,
