@@ -1,16 +1,14 @@
 from pathlib import Path
 import argparse
-import math
 
+import math
 import pandas as pd
 import numpy as np
+
 import tqdm
+import time
 
 #  Importing packages for visualization
-# import seaborn as sns
-# import matplotlib
-# import matplotlib.pyplot as plt
-# from IPython import display
 import plotly.graph_objects as go
 
 
@@ -18,9 +16,6 @@ import plotly.graph_objects as go
 import sklearn
 from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, \
     RandomForestClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
-
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.metrics import roc_auc_score, confusion_matrix, accuracy_score, \
@@ -28,12 +23,14 @@ from sklearn.metrics import roc_auc_score, confusion_matrix, accuracy_score, \
 
 from scipy.stats import ttest_ind
 from scipy import stats
+from scipy.signal import savgol_filter
 
-#  Importing module for imbalanced learning
+
+#  Importing the modules from imbalanced learning
 from imblearn.over_sampling import ADASYN, SMOTE  # up-sampling
 from imblearn.under_sampling import CondensedNearestNeighbour  # down-sampling
 
-#  Importing module for active learning
+#  Importing the modules for active learning
 from modAL.models import ActiveLearner, Committee
 from modAL.batch import uncertainty_batch_sampling
 from modAL.uncertainty import uncertainty_sampling, classifier_uncertainty
@@ -42,17 +39,17 @@ from modAL.batch import ranked_batch
 
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
-from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, BATCH_MODE
-# Importing modules to calculate confidence intervals and descriptors
-from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
-from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, str2bool, rm_tree
+from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, BATCH_MODE, str2bool, rm_tree, file_doesnot_exist
 
-# Importing lightgbm to train classifier
+# Importing cls models
 from lightgbm import LGBMClassifier
-import optuna.integration.lightgbm as lgb
 from xgboost import XGBClassifier
-
 import xgboost as xgb
+
+#  Importing modules and packages for model tunning
+import optuna
+import optuna.integration.lightgbm as lgb
+from hyperopt import tpe
 
 #  Importing packages to enable processing of chemical structures
 import rdkit
@@ -68,11 +65,9 @@ import warnings
 # from itertools import combinations
 from mlxtend.evaluate import mcnemar_table, mcnemar
 
-#  Importing modules and packages for model tunning
-import optuna
-from hyperopt import tpe
-from scipy import stats
-import time
+
+
+
 
 RDLogger.DisableLog('rdApp.*')
 warnings.filterwarnings("ignore")
@@ -162,7 +157,6 @@ class TrainModel:
              of observed differences between AL and non-AL models
 
 
-
     """
 
     # Added class variables
@@ -171,8 +165,10 @@ class TrainModel:
     N_L = 3  # Number of commitee learners
     S_L = 0.05  # p-value threshold
     P_R_MCC = 0.88 # The portion of data to reach the max MCC
+    W_SG = 51
+    H_SG = 3
 
-    def __init__(self, data, activity_colunm_name,
+    def __init__(self, data, validation_data, activity_colunm_name,
                  descriptor, models, test_split_r,
                  folder_name, scaler=StandardScaler(),
                  sampling=SMOTE(), n_features=300,
@@ -184,6 +180,7 @@ class TrainModel:
                  n_batch=3):
 
         self.dataset = data.copy()
+        self.validation_data = validation_data.copy()
         self.activity_column_name = activity_colunm_name
         self.descriptor = {descriptor: DESCRIPTORS[descriptor]}
         self.models = models
@@ -210,10 +207,15 @@ class TrainModel:
         self.max_mcc_data_percent = None
         self.batch_mode = batch_mode
         self.batch_n = n_batch
-        self.class_balance = None
-
+        self.final_cls = None
+        self.SCAMsCls = None
+        self.external_X = None
+        self.external_Y = None
 
     def run(self):
+        """
+        Create directory to save results and run study
+        """
         if Path.is_dir(self.result_dir_path):
             delete_existing_path = str2bool(input('Path exist. Do you want to delete the existing path and create the new? Please, enter yes or no: '))
             if delete_existing_path:
@@ -226,6 +228,8 @@ class TrainModel:
         self.calculate_descriptors()
         time_descr = time.time()
         print('It took {} seconds to calculate descriptors'.format(int(time_descr - time_zero)))
+        self.external_X = self.transform_X(self.validation_data[list(self.descriptor.keys())[0]])
+        self.external_Y = self.transform_X(self.validation_data['DLS'])
         self.fit_model_CV()
         time_fit = time.time()
         print('It took {} seconds to fit models'.format(int(time_fit - time_descr)))
@@ -233,19 +237,30 @@ class TrainModel:
         # print(self.max_mcc_data_percent)
         self.make_radar_chart()
 
+
+    @staticmethod
+    def run_descriptors(dataset, descr_dictionary,
+                       M_R, N_BITS):
+
+        for descr_name, descr_func in descr_dictionary.items():
+
+            dataset['mol_obj'] = dataset['Smiles String'].apply(
+                lambda x: Chem.MolFromSmiles(x))
+            if descr_name == 'MorganFingerprint':
+                dataset['{}'.format(descr_name)] = dataset['mol_obj'].apply(lambda x: descr_func(x, M_R, nBits=N_BITS))  # Calculate Morgan descriptors
+            else:
+                dataset['{}'.format(descr_name)] = dataset['mol_obj'].apply(
+                    lambda x: descr_func(x))  # Calculate other descriptors
+
+
     def calculate_descriptors(self):
         """
         Converts SMILES to mol_obj and calculate descriptors
         """
-        for d_nm, d_fn in self.descriptor.items():
-            self.dataset['mol_obj'] = self.dataset['Smiles String'].apply(
-                lambda x: Chem.MolFromSmiles(x))  # Make mol_obj from SMILES
-            if d_nm == 'MorganFingerprint':
-                self.dataset['{}'.format(d_nm)] = self.dataset['mol_obj'].apply(lambda x: d_fn(x, self.M_R,
-                                                                                               nBits=self.N_BITS))  # Calculate Morgan descriptors
-            else:
-                self.dataset['{}'.format(d_nm)] = self.dataset['mol_obj'].apply(
-                    lambda x: d_fn(x))  # Calculate other descriptors
+        self.run_descriptors(self.dataset, self.descriptor, M_R=self.M_R,
+                             N_BITS=self.N_BITS)
+        self.run_descriptors(self.validation_data, self.descriptor, M_R=self.M_R,
+                             N_BITS=self.N_BITS)
 
     @staticmethod
     def transform_X(X):
@@ -339,6 +354,20 @@ class TrainModel:
         return f_one, (tp * tn - fp * fn) / ((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)) ** 0.5
 
     def make_committee(self, cls, X_initial, y_initial, n_learners=3):
+        """
+        Make a committee learner
+        Parameters
+        ----------
+        :param cls: classifier model
+        :param X_initial: np.array, initial features
+        :param y_initial: np.array, initial labels
+        :param n_learners: int, number of learners in the committee
+
+        Returns
+        -------
+        committee
+
+        """
         learner_list = []
         for _ in range(n_learners):
             learner = ActiveLearner(
@@ -368,6 +397,58 @@ class TrainModel:
         cls, counts = np.unique(class_labels_np, return_counts=True)
         return counts[0] / counts[1]
 
+    @staticmethod
+    def make_plot(y, n, plot_title):
+        """
+        Make a plot
+
+        Parameters
+        ----------
+        :param y: list, values on the ordinate
+        :param n: int, number of points
+        :param plot_title: str, plot title
+
+        Returns
+        -------
+        plot
+        """
+        plot = go.Figure(go.Scatter(
+            x=list(range(0, n)),
+            y=y
+        ))
+        plot.update_layout(
+            xaxis=dict(
+                title='Iteration',
+                tickmode='linear',
+                tick0=0.5,
+                dtick=0.75,
+                showticklabels=False
+            ),
+            yaxis=dict(
+                title=plot_title
+            )
+        )
+        return plot
+
+    @staticmethod
+    def average_stat(stat_array, window, polyorder):
+        """
+        Calculate average performance
+
+        Parameters
+        ----------
+        :param stat_array: np.array, AL run results
+
+        Returns
+        :param average: float, average value
+        -------
+        """
+        stat_array = np.array(stat_array)
+        savitzky_golay = savgol_filter(stat_array, window, polyorder)
+        max_index = np.argmax(savitzky_golay)
+        return savitzky_golay[max_index], max_index
+
+
     def AL_strategy(self, iteration, X_train, X_test, Y_train, Y_test,
                     n_initial, n_queries,
                     cls=RandomForestClassifier(),
@@ -376,8 +457,7 @@ class TrainModel:
         """
         Subsample training dataset using AL strategies
         """
-        if self.class_balance is None:
-            self.class_balance = []
+        class_balance = []  # list to save class balance
 
         def random_choise(X_train, n_initial):
             initial_idx = np.random.choice(range(len(X_train)),
@@ -390,7 +470,7 @@ class TrainModel:
 
         X, Y = X_train[initial_idx], Y_train[initial_idx]
 
-        self.class_balance.append(self.calculate_cls_balance(Y))
+        class_balance.append(self.calculate_cls_balance(Y))
 
         X_initial, y_initial = X_train[initial_idx], Y_train[initial_idx]
         X_pool, y_pool = np.delete(X_train, initial_idx, axis=0), \
@@ -427,7 +507,7 @@ class TrainModel:
                 learner.teach(X_pool[query_idx], y_pool[query_idx])
             X = np.append(X, X_pool[query_idx], axis=0)
             Y = np.append(Y, y_pool[query_idx])
-            self.class_balance.append(self.calculate_cls_balance(Y))
+            class_balance.append(self.calculate_cls_balance(Y))
             X_pool, y_pool = np.delete(X_pool, query_idx, axis=0), np.delete(y_pool, query_idx, axis=0)
             auc_d, (lb_d, ub_d) = self.auc_for_modAL(learner, X_test, Y_test)
             AL_auc_scores.append(auc_d)
@@ -447,42 +527,45 @@ class TrainModel:
         max_accuracy = max(AL_accuracy_scores)
         max_f_one = max(AL_f_one_scores)
         max_mcc = max(AL_mcc_scores)
+        max_mcc, max_mcc_index = self.average_stat(AL_mcc_scores, self.W_SG, self.H_SG)
 
-        mcc_plot = go.Figure(go.Scatter(
-            x=list(range(0, n_queries)),
-            y=AL_mcc_scores
-        ))
-        mcc_plot.update_layout(
-            xaxis=dict(
-                title='Iteration',
-                tickmode='linear',
-                tick0=0.5,
-                dtick=0.75,
-                showticklabels=False
-            ),
-            yaxis=dict(
-                title='MCC value'
-            )
-        )
+        mcc_plot = self.make_plot(AL_mcc_scores, n_queries,
+                                  'MCC plot')
+        class_balance_plot = self.make_plot(class_balance, n_queries,
+                                            'Class balance')
+
         mcc_plot_path = self.result_dir_path / 'mcc_plot_iteration_{}.svg'.format(iteration)
         mcc_plot.write_image(str(mcc_plot_path))
 
+        class_balance_plot_path = self.result_dir_path / 'class_balance_plot_iteration_{}.svg'.format(iteration)
+        class_balance_plot.write_image(str(class_balance_plot_path))
+
         performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
 
-        max_mcc_index = np.argmax(AL_mcc_scores)
-        print(max_mcc_index)
+        # max_mcc_index = np.argmax(AL_mcc_scores)
         final_X_train, final_Y_train = X[0: max_mcc_index * self.batch_n + n_initial, ], Y[0: max_mcc_index * self.batch_n + n_initial, ]
         if self.max_mcc_data_percent is None:
             self.max_mcc_data_percent = []
+
         self.max_mcc_data_percent.append((final_X_train.shape[0] / X_train.shape[0]) * 100)
 
-        final_cls = cls
-        final_cls.fit(final_X_train, final_Y_train)
-        f_one_final, mcc_final = self.f_one_mcc_score(final_cls, X_test, Y_test)
-        print(mcc_final, max_mcc)
-        predicted_labels = final_cls.predict(X_test)
-
+        self.final_cls = cls
+        self.final_cls.fit(final_X_train, final_Y_train)
+        f_one_final, mcc_final = self.f_one_mcc_score(self.final_cls, X_test, Y_test)
+        print('Max MCC: ', max_mcc, 'MCC after refit: ', mcc_final)
+        predicted_labels = self.final_cls.predict(X_test)
+        f_one_ext, mcc_al_ext = self.f_one_mcc_score(self.final_cls, self.external_X, self.external_Y)
+        print('AL: ', f_one_ext, mcc_al_ext)
         return performance_stats, predicted_labels
+
+    # def external_validation(self):
+    #     X_to_predict = self.transform_X(self.validation_data[list(self.descriptor.keys())[0]])
+    #     Y_test = self.transform_X(self.validation_data['DLS'])
+    #     f_one_al, mcc_al = self.f_one_mcc_score(self.final_cls, X_to_predict, Y_test)
+    #     print("AL", f_one_al, mcc_al)
+    #     f_one_n_al, mcc_n_al = self.f_one_mcc_score(self.SCAMsCls, X_to_predict, Y_test)
+    #     print("non_AL", f_one_n_al, mcc_n_al)
+
 
     @staticmethod
     def calculate_iter_AL(data, spit_ratio,
@@ -583,20 +666,19 @@ class TrainModel:
         Run non AL strategy
         """
 
-        SCAMsCls = model_function
+        self.SCAMsCls = model_function
         if self.run_sampling:
             X_train, Y_train = self.sampl(X_train, Y_train, self.sampling)
-        SCAMsCls.fit(X_train, Y_train)
-        test_predicted = SCAMsCls.predict_proba(X_test)
-        predicted_labels = SCAMsCls.predict(X_test)
-        f_one, mcc = self.f_one_mcc_score(SCAMsCls, X_test, Y_test)
-        test_accuracy = accuracy_score(Y_test, SCAMsCls.predict(X_test))
+        self.SCAMsCls.fit(X_train, Y_train)
+        test_predicted = self.SCAMsCls.predict_proba(X_test)
+        predicted_labels = self.SCAMsCls.predict(X_test)
+        f_one, mcc = self.f_one_mcc_score(self.SCAMsCls, X_test, Y_test)
+        test_accuracy = accuracy_score(Y_test, self.SCAMsCls.predict(X_test))
         auc_d, (lb_d, ub_d) = calc_auc_ci(Y_test, test_predicted[:, 1])
 
-        # print('AUC score for {} model is {: .3}. Accuracy is {: .3}. MCC is {: .3}. F1 score is {: .3}'.format(
-        #     model_name, auc_d, test_accuracy, mcc, f_one))
         performance_stats = [lb_d, auc_d, ub_d, test_accuracy, f_one, mcc]
-
+        f_one_ext, mcc_al_ext = self.f_one_mcc_score(self.SCAMsCls, self.external_X, self.external_Y)
+        print('non AL: ', f_one_ext, mcc_al_ext)
         return performance_stats, predicted_labels
 
     def fit_model_CV(self):
@@ -734,7 +816,7 @@ if __name__ == "__main__":
     ap.add_argument('-sa', '--sampling', required=False,
                     help='Define feature sampling procedure', default='SMOTE')
     ap.add_argument('-sp', '--test_split_ratio', required=False,
-                    default=0.3, type=float)
+                    default=0.2, type=float)
     ap.add_argument('-b', '--butina', default=False,
                     help='Run butina algorithm, False or True', type=bool,
                     action=argparse.BooleanOptionalAction)
@@ -752,6 +834,8 @@ if __name__ == "__main__":
                     action=argparse.BooleanOptionalAction)
     ap.add_argument('-b_n', '--n_batch', required=False, default=3,
                     help='Number of samples in the bath', type=int)
+    ap.add_argument('-e_v', '--external_validation_dataset', default='test_DLS.txt',
+                    help='Dataset for external validation')
     args = ap.parse_args()
     models = {}
     for m in args.models:
@@ -763,14 +847,15 @@ if __name__ == "__main__":
 
     sampling_u = SAMPLING[args.sampling]
 
-    dataset_path = Path(args.path) / args.file
-    if not dataset_path.is_file():
-        raise FileNotFoundError(
-            'File {} not found in location {}. Please, inter valid path and file name'.format(args.file, args.path))
-
+    dataset_path = file_doesnot_exist(args.path, args.file)
     dataset = pd.read_csv(dataset_path, index_col=0)
 
-    ModelInstance = TrainModel(data=dataset, activity_colunm_name=args.activity_col,
+    ext_val_dataset_path = file_doesnot_exist(args.path, args.external_validation_dataset)
+    ext_val_dataset = pd.read_csv(ext_val_dataset_path, sep='\t')
+
+
+    ModelInstance = TrainModel(data=dataset, validation_data=ext_val_dataset,
+                               activity_colunm_name=args.activity_col,
                                descriptor=args.descriptor, models=models,
                                test_split_r=args.test_split_ratio,
                                folder_name=args.study_name,

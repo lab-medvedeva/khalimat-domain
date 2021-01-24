@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import scipy.stats as stats
 import argparse
+import random
+from pathlib import Path
 
 from sklearn.utils import resample
 
@@ -16,9 +18,6 @@ from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, \
 
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
-# from catboost import CatBoostClassifier
 
 from modAL.uncertainty import uncertainty_sampling
 from modAL.batch import uncertainty_batch_sampling
@@ -32,7 +31,6 @@ DESCRIPTORS = {'MorganFingerprint': AllChem.GetMorganFingerprintAsBitVect,
                'MACCSkeys': MACCSkeys}
 
 MODELS = {'RandomForestClassifier': RandomForestClassifier(n_jobs=-1),
-          # 'SVC': SVC(probability=True), 'GaussianNB': GaussianNB(),
           'ExtraTreesClassifier': ExtraTreesClassifier(n_jobs=-1),
           'LGBM': LGBMClassifier(n_jobs=-1),
           'XGBClassifier': XGBClassifier(n_jobs=-1)}
@@ -48,7 +46,6 @@ METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1', 'MCC']
 
 
 # from https://github.com/yandexdataschool/roc_comparison/blob/master/compare_auc_delong_xu.py
-
 # AUC comparison adapted from
 # https://github.com/Netflix/vmaf/
 def compute_midrank(x):
@@ -358,6 +355,12 @@ def generate_scaffolds(dataset):
     return scaffold_sets
 
 def str2bool(v):
+    """
+    Transfer string to bool
+    Parameter
+    ----------
+    v: str
+    """
     if isinstance(v, bool):
        return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -368,9 +371,39 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def rm_tree(pth):
+    """
+    Recursively remove files from the directory
+
+    Parameter
+    ----------
+    pth: Pathlib path
+
+    """
     for child in pth.iterdir():
         if child.is_file():
             child.unlink()
         else:
             rm_tree(child)
     pth.rmdir()
+
+def file_doesnot_exist(path, file_name):
+    """
+    Returns full path if file exist, else raises error
+
+    Parameters
+    ----------
+    file_name: str, file name
+    path: str, directory
+
+    Returns
+    -------
+    full_file_path: Path object
+
+    """
+
+    full_file_path = Path(path) / file_name
+    if not full_file_path.is_file():
+        raise FileNotFoundError(
+            'File {} not found in location {}. Please, inter valid path and file name'.format(file_name, path))
+    else:
+        return full_file_path
