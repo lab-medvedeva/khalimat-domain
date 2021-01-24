@@ -551,9 +551,10 @@ class TrainModel:
         self.final_cls.fit(final_X_train, final_Y_train)
         f_one_final, mcc_final = self.f_one_mcc_score(self.final_cls, X_test, Y_test)
         predicted_labels = self.final_cls.predict(X_test)
-        f_one_ext, mcc_al_ext = self.f_one_mcc_score(self.final_cls, self.external_X, self.external_Y)
-        print('AL: ', f_one_ext, mcc_al_ext)
-        return performance_stats, predicted_labels
+        f1_ext, mcc_ext = self.f_one_mcc_score(self.final_cls, self.external_X, self.external_Y)
+        performance_stats_external = [f1_ext, mcc_ext]
+        print('AL: ', *performance_stats_external)
+        return performance_stats, predicted_labels, performance_stats_external
 
     @staticmethod
     def calculate_iter_AL(data, spit_ratio,
@@ -584,12 +585,12 @@ class TrainModel:
         if df_with_stats is None:
             df_with_stats = pd.DataFrame(performance_stats,
                                          columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
-                                                  'AUC_UB', 'Accuracy', 'F1', 'MCC'])
+                                                  'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external'])
         else:
             df_with_stats = pd.concat([df_with_stats,
                                        pd.DataFrame(performance_stats,
                                                     columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
-                                                             'AUC_UB', 'Accuracy', 'F1', 'MCC'])])
+                                                             'AUC_UB', 'Accuracy', 'F1', 'MCC', 'F1_external', 'MCC_external'])])
         return df_with_stats
 
     def split_with_butina(self, df_with_mol_obj, split_r, x_column_name='MorganFingerprint',
@@ -664,10 +665,11 @@ class TrainModel:
         test_accuracy = accuracy_score(Y_test, self.SCAMsCls.predict(X_test))
         auc_d, (lb_d, ub_d) = calc_auc_ci(Y_test, test_predicted[:, 1])
 
-        performance_stats = [lb_d, auc_d, ub_d, test_accuracy, f_one, mcc]
-        f_one_ext, mcc_al_ext = self.f_one_mcc_score(self.SCAMsCls, self.external_X, self.external_Y)
-        print('non AL: ', f_one_ext, mcc_al_ext)
-        return performance_stats, predicted_labels
+        performance_stats_test = [lb_d, auc_d, ub_d, test_accuracy, f_one, mcc]
+        f1_ext, mcc_ext = self.f_one_mcc_score(self.SCAMsCls, self.external_X, self.external_Y)
+        performance_stats_external = [f1_ext, mcc_ext]
+        print('non AL: ', *performance_stats_external)
+        return performance_stats_test, predicted_labels, performance_stats_external
 
     def fit_model_CV(self):
         """
@@ -675,6 +677,8 @@ class TrainModel:
         """
         performance_stats_n_AL = []
         performance_stats_AL = []
+        # performance_stats_ext_AL = []
+        # performance_stats_ext_non_AL = []
         mc_nemar_stats = []
         for model_name, model_function in self.models.items():
             for i in tqdm.tqdm(range(self.cv_n)):
@@ -687,17 +691,17 @@ class TrainModel:
                     X_train, X_test, Y_train, Y_test = self.split_train_val(self.dataset, self.test_split_r)
                 # Run non-AL model and save the results
                 [lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al,
-                 mcc_n_al], y_non_AL_model = self.non_AL_strategy(model_name,
+                 mcc_n_al], y_non_AL_model, [f1_ext_non_AL, mcc_ext_non_AL] = self.non_AL_strategy(model_name,
                                                                   model_function,
                                                                   X_train, Y_train,
                                                                   X_test, Y_test)
 
                 performance_stats_n_AL.append(
-                    [i, model_name, lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al, mcc_n_al])
+                    [i, model_name, lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al, mcc_n_al, f1_ext_non_AL, mcc_ext_non_AL])
 
                 # Run AL model and save the results
                 n_q = int(self.P_R_MCC * self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial))
-                [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model = self.AL_strategy(i, X_train,
+                [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model, [f1_ext_AL, mcc_ext_AL] = self.AL_strategy(i, X_train,
                                                                                                            X_test,
                                                                                                            Y_train,
                                                                                                            Y_test,
@@ -709,7 +713,7 @@ class TrainModel:
                                                                                                            BATCH_MODE[
                                                                                                                self.batch_mode])
                 performance_stats_AL.append(
-                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al])
+                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al, f1_ext_AL, mcc_ext_AL])
 
                 cont_tb = mcnemar_table(y_target=Y_test,
                                         y_model1=y_non_AL_model,

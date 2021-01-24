@@ -39,10 +39,11 @@ SAMPLING = {'SMOTE': SMOTE(),
             'ADASYN': ADASYN(),
             'CondensedNearestNeighbour': CondensedNearestNeighbour(random_state=0),
             'InstanceHardnessThreshold': InstanceHardnessThreshold(random_state=42)}
+
 BATCH_MODE = {True: uncertainty_batch_sampling,
               False: uncertainty_sampling}
 
-METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1', 'MCC']
+METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
 
 
 # from https://github.com/yandexdataschool/roc_comparison/blob/master/compare_auc_delong_xu.py
