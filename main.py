@@ -33,7 +33,7 @@ from imblearn.under_sampling import CondensedNearestNeighbour  # down-sampling
 #  Importing the modules for active learning
 from modAL.models import ActiveLearner, Committee
 from modAL.batch import uncertainty_batch_sampling
-from modAL.uncertainty import uncertainty_sampling, classifier_uncertainty
+from modAL.uncertainty import uncertainty_sampling, classifier_uncertainty, classifier_entropy
 from modAL.disagreement import vote_entropy_sampling
 from modAL.batch import ranked_batch
 
@@ -163,7 +163,7 @@ class TrainModel:
     N_L = 3  # Number of commitee learners
     S_L = 0.05  # p-value threshold
     P_R_MCC = 0.88  # The portion of data to reach the max MCC
-    W_SG = 11
+    W_SG = 5
     H_SG = 3
 
     def __init__(self, data, validation_data, activity_colunm_name,
@@ -452,7 +452,7 @@ class TrainModel:
                     n_initial, n_queries,
                     cls=RandomForestClassifier(),
                     name='RandomForestClassifier',
-                    q_strategy=uncertainty_batch_sampling):
+                    q_strategy=classifier_entropy):
         """
         Subsample training dataset using AL strategies
         """
