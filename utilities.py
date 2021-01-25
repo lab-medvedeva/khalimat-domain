@@ -38,13 +38,14 @@ MODELS = {'RandomForestClassifier': RandomForestClassifier(n_jobs=-1),
 SAMPLING = {'SMOTE': SMOTE(),
             'ADASYN': ADASYN(),
             'CondensedNearestNeighbour': CondensedNearestNeighbour(random_state=0),
-            'InstanceHardnessThreshold': InstanceHardnessThreshold(random_state=42)}
+            'InstanceHardnessThreshold': InstanceHardnessThreshold(random_state=42),
+            'No sampling': None}
 
 BATCH_MODE = {True: uncertainty_batch_sampling,
               False: uncertainty_sampling}
 
-METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
-
+# METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
+METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test']
 
 # from https://github.com/yandexdataschool/roc_comparison/blob/master/compare_auc_delong_xu.py
 # AUC comparison adapted from

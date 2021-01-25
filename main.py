@@ -162,8 +162,8 @@ class TrainModel:
     M_R = 3  # Morgan Fingerprint's Radius
     N_L = 3  # Number of commitee learners
     S_L = 0.05  # p-value threshold
-    P_R_MCC = 0.88 # The portion of data to reach the max MCC
-    W_SG = 51
+    P_R_MCC = 0.88  # The portion of data to reach the max MCC
+    W_SG = 11
     H_SG = 3
 
     def __init__(self, data, validation_data, activity_colunm_name,
@@ -585,12 +585,13 @@ class TrainModel:
         if df_with_stats is None:
             df_with_stats = pd.DataFrame(performance_stats,
                                          columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
-                                                  'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external'])
+                                                  'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test'])
         else:
             df_with_stats = pd.concat([df_with_stats,
                                        pd.DataFrame(performance_stats,
                                                     columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
-                                                             'AUC_UB', 'Accuracy', 'F1', 'MCC', 'F1_external', 'MCC_external'])])
+                                                             'AUC_UB', 'Accuracy', 'F1', 'MCC'])])
+        # F1_external', 'MCC_external'
         return df_with_stats
 
     def split_with_butina(self, df_with_mol_obj, split_r, x_column_name='MorganFingerprint',
@@ -697,7 +698,7 @@ class TrainModel:
                                                                   X_test, Y_test)
 
                 performance_stats_n_AL.append(
-                    [i, model_name, lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al, mcc_n_al, f1_ext_non_AL, mcc_ext_non_AL])
+                    [i, model_name, lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al, mcc_n_al]) #  f1_ext_non_AL, mcc_ext_non_AL
 
                 # Run AL model and save the results
                 n_q = int(self.P_R_MCC * self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial))
@@ -713,7 +714,7 @@ class TrainModel:
                                                                                                            BATCH_MODE[
                                                                                                                self.batch_mode])
                 performance_stats_AL.append(
-                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al, f1_ext_AL, mcc_ext_AL])
+                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al]) # f1_ext_AL, mcc_ext_AL
 
                 cont_tb = mcnemar_table(y_target=Y_test,
                                         y_model1=y_non_AL_model,
