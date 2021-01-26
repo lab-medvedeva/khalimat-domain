@@ -45,7 +45,7 @@ BATCH_MODE = {True: uncertainty_batch_sampling,
               False: uncertainty_sampling}
 
 # METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
-METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test']
+METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
 
 # from https://github.com/yandexdataschool/roc_comparison/blob/master/compare_auc_delong_xu.py
 # AUC comparison adapted from

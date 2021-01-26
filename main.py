@@ -553,7 +553,7 @@ class TrainModel:
         predicted_labels = self.final_cls.predict(X_test)
         f1_ext, mcc_ext = self.f_one_mcc_score(self.final_cls, self.external_X, self.external_Y)
         performance_stats_external = [f1_ext, mcc_ext]
-        print('AL: ', *performance_stats_external)
+        print('AL, DeepScams ds: ', *performance_stats_external)
         return performance_stats, predicted_labels, performance_stats_external
 
     @staticmethod
@@ -585,12 +585,12 @@ class TrainModel:
         if df_with_stats is None:
             df_with_stats = pd.DataFrame(performance_stats,
                                          columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
-                                                  'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test'])
+                                                  'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external'])
         else:
             df_with_stats = pd.concat([df_with_stats,
                                        pd.DataFrame(performance_stats,
                                                     columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
-                                                             'AUC_UB', 'Accuracy', 'F1', 'MCC'])])
+                                                             'AUC_UB', 'Accuracy', 'F1', 'MCC', 'F1_external', 'MCC_external'])])
         # F1_external', 'MCC_external'
         return df_with_stats
 
@@ -669,7 +669,7 @@ class TrainModel:
         performance_stats_test = [lb_d, auc_d, ub_d, test_accuracy, f_one, mcc]
         f1_ext, mcc_ext = self.f_one_mcc_score(self.SCAMsCls, self.external_X, self.external_Y)
         performance_stats_external = [f1_ext, mcc_ext]
-        print('non AL: ', *performance_stats_external)
+        print('non AL, DeepScams ds: ', *performance_stats_external)
         return performance_stats_test, predicted_labels, performance_stats_external
 
     def fit_model_CV(self):
@@ -698,7 +698,7 @@ class TrainModel:
                                                                   X_test, Y_test)
 
                 performance_stats_n_AL.append(
-                    [i, model_name, lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al, mcc_n_al]) #  f1_ext_non_AL, mcc_ext_non_AL
+                    [i, model_name, lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al, mcc_n_al, f1_ext_non_AL, mcc_ext_non_AL]) #  f1_ext_non_AL, mcc_ext_non_AL
 
                 # Run AL model and save the results
                 n_q = int(self.P_R_MCC * self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial))
@@ -714,7 +714,7 @@ class TrainModel:
                                                                                                            BATCH_MODE[
                                                                                                                self.batch_mode])
                 performance_stats_AL.append(
-                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al]) # f1_ext_AL, mcc_ext_AL
+                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al, f1_ext_AL, mcc_ext_AL]) # f1_ext_AL, mcc_ext_AL
 
                 cont_tb = mcnemar_table(y_target=Y_test,
                                         y_model1=y_non_AL_model,
