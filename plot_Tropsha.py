@@ -14,7 +14,9 @@ to_plot = {'RF_N_SP1_SS': 'RF, No sampling, SCAMS_balanced_with_positive.csv, Sc
            'RF_N_SP1_TT1': 'RF, No sampling, SCAMS_filtered.csv, Scaffold splitter',
            'RF_CNN_SF_SS': 'RF, CondensedNearestNeighbour, SCAMS_filtered.csv, Scaffold splitter',
            'RF_SMOTE_SP2_SS': 'RF, SMOTE, SCAMS_added_positives_653_1043.csv, Scaffold splitter',
-           'RF_ADASYN_SP2_SS': 'RF, ADASYN, SCAMS_added_positives_653_1043.csv, Scaffold splitter'}
+           'RF_ADASYN_SP2_SS': 'RF, ADASYN, SCAMS_added_positives_653_1043.csv, Scaffold splitter',
+           'RF_CNN_SP2_SS': 'RF, CondensedNearest., SCAMS_added_positives_653_1043.csv, Scaffold splitter'
+           }
 # RF_SMOTE_SP2_SS': 'RandomForestClassifier, SMOTE, SCAMS_added_positives_653_1043.csv, Scaffold splitter'
 
 def make_plot(paret_pat, dir, title):
