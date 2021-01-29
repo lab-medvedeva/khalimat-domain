@@ -17,7 +17,8 @@ to_plot = {
     #        'RF_SMOTE_SP2_SS': 'RF, SMOTE, SCAMS_added_positives_653_1043.csv, Scaffold splitter',
     #        'RF_ADASYN_SP2_SS': 'RF, ADASYN, SCAMS_added_positives_653_1043.csv, Scaffold splitter',
     #        'RF_CNN_SP2_SS': 'RF, CondensedNearest., SCAMS_added_positives_653_1043.csv, Scaffold splitter'
-           'RF_IHT_SP2_SS': 'RF, InstanceHardness., SCAMS_added_positives_653_1043.csv, Scaffold splitter'
+    #        'RF_IHT_SP2_SS': 'RF, InstanceHardness., SCAMS_added_positives_653_1043.csv, Scaffold splitter'
+    'RF_IHT_SF_SS': 'RF, InstanceHardness., SCAMS_filtered.csv, Scaffold splitter'
            }
 # RF_SMOTE_SP2_SS': 'RandomForestClassifier, SMOTE, SCAMS_added_positives_653_1043.csv, Scaffold splitter'
 
