@@ -39,7 +39,7 @@ from modAL.batch import ranked_batch
 
 # Importing modules to calculate confidence intervals and descriptors
 from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
-from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, BATCH_MODE, str2bool, rm_tree, file_doesnot_exist
+from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, SELECTION_MODE, str2bool, rm_tree, file_doesnot_exist
 
 # Importing cls models
 from lightgbm import LGBMClassifier
@@ -168,8 +168,9 @@ class TrainModel:
 
     def __init__(self, data, validation_data, activity_colunm_name,
                  descriptor, models, test_split_r,
-                 folder_name, scaler=StandardScaler(),
-                 sampling=SMOTE(), n_features=300,
+                 folder_name, selection,
+                 scaler=StandardScaler(), sampling=SMOTE(),
+                 n_features=300,
                  initial=10, run_butina=False,
                  run_scaf_split=False,
                  run_sampling=False,
@@ -210,6 +211,7 @@ class TrainModel:
         self.external_X = None
         self.external_Y = None
         self.external_val_res = None
+        self.selection = selection
 
     def run(self):
         """
@@ -452,7 +454,7 @@ class TrainModel:
                     n_initial, n_queries,
                     cls=RandomForestClassifier(),
                     name='RandomForestClassifier',
-                    q_strategy=classifier_entropy):
+                    q_strategy=vote_entropy_sampling):
         """
         Subsample training dataset using AL strategies
         """
@@ -710,9 +712,7 @@ class TrainModel:
                                                                                                            n_q,
                                                                                                            cls=model_function,
                                                                                                            name=model_name,
-                                                                                                           q_strategy=
-                                                                                                           BATCH_MODE[
-                                                                                                               self.batch_mode])
+                                                                                                           q_strategy=self.selection)
                 performance_stats_AL.append(
                     [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al, f1_ext_AL, mcc_ext_AL]) # f1_ext_AL, mcc_ext_AL
 
@@ -822,21 +822,25 @@ if __name__ == "__main__":
     ap.add_argument('-c', '--committee', default=False,
                     help='Make committee learner, False or True', type=bool,
                     action=argparse.BooleanOptionalAction)
-    ap.add_argument('-b_m', '--batch_mode', required=False, default=False,
-                    help='Run batch selection, False or True', type=bool,
-                    action=argparse.BooleanOptionalAction)
+    ap.add_argument('-sl_m', '--sel_mode', required=False, default='uncertainty_sampling',
+                    help='Selection mode', type=str)
     ap.add_argument('-b_n', '--n_batch', required=False, default=3,
                     help='Number of samples in the bath', type=int)
     ap.add_argument('-e_v', '--external_validation_dataset', default='test_DLS.txt',
                     help='Dataset for external validation')
     args = ap.parse_args()
     models = {}
+    print(args.sel_mode)
     for m in args.models:
         models[m] = MODELS[m]
-    if args.batch_mode:
+    if args.sel_mode == 'uncertainty_batch_sampling':
         n_batch = args.n_batch
+        batch_mode = True
+        selection = SELECTION_MODE[args.sel_mode]
     else:
         n_batch = 1
+        batch_mode = False
+        selection = SELECTION_MODE[args.sel_mode]
 
     sampling_u = SAMPLING[args.sampling]
 
@@ -857,6 +861,7 @@ if __name__ == "__main__":
                                run_scaf_split=args.scaf_split,
                                run_sampling=args.run_sampling,
                                committee=args.committee,
-                               batch_mode=args.batch_mode,
+                               batch_mode=batch_mode,
+                               selection=selection,
                                n_batch=n_batch)
     ModelInstance.run()

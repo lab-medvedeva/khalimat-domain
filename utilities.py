@@ -19,8 +19,9 @@ from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, \
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 
-from modAL.uncertainty import uncertainty_sampling
+from modAL.uncertainty import uncertainty_sampling, classifier_uncertainty, classifier_entropy
 from modAL.batch import uncertainty_batch_sampling
+
 
 from imblearn.over_sampling import ADASYN, SMOTE  # upsampling
 from imblearn.under_sampling import CondensedNearestNeighbour, InstanceHardnessThreshold  # downsampling
@@ -41,8 +42,11 @@ SAMPLING = {'SMOTE': SMOTE(),
             'InstanceHardnessThreshold': InstanceHardnessThreshold(random_state=42),
             'No sampling': None}
 
-BATCH_MODE = {True: uncertainty_batch_sampling,
-              False: uncertainty_sampling}
+SELECTION_MODE = {'uncertainty_batch_sampling': uncertainty_batch_sampling,
+                  'uncertainty_sampling': uncertainty_sampling,
+                  # 'classifier_entropy': classifier_entropy,
+                  # 'classifier_uncertainty': classifier_uncertainty
+              }
 
 # METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
 METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
