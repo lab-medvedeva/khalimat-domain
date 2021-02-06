@@ -792,59 +792,67 @@ class TrainModel:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
+
     ap.add_argument('-p', '--path', required=True,
                     help='Path to directory with dataset')  # Specify path
     ap.add_argument('-f', '--file', required=True,
                     help='Dataset file name')  # Specify dataset file name
     ap.add_argument('-sn', '--study_name', required=True, type=str,
                     help='Study name')
+    ap.add_argument('-e_v', '--external_validation_dataset', default='test_DLS.txt',
+                    help='Dataset for external validation')
+
+    ap.add_argument('-sp', '--test_split_ratio', required=False,
+                    default=0.3, type=float)
+
     ap.add_argument('-a', '--activity_col', required=False,
                     help='Activity column name', default='agg?')
     ap.add_argument('-d', '--descriptor', required=False,  # Specify descriptors
                     help='Descriptor, MorganFingerprint or RDKFingerprint or MACCSkeys',
                     default='MorganFingerprint')
+
     ap.add_argument('-m', '--models', required=False, nargs='+',
                     help='Names of models to train separated by comma',
                     default=['RandomForestClassifier'])
+
+    ap.add_argument('-rs', '--run_sampling', required=False, default=False,
+                    help='Run up- or downsampling', type=bool)
     ap.add_argument('-sa', '--sampling', required=False,
                     help='Define feature sampling procedure', default='SMOTE')
-    ap.add_argument('-sp', '--test_split_ratio', required=False,
-                    default=0.2, type=float)
+
+
     ap.add_argument('-b', '--butina', default=False,
-                    help='Run butina algorithm, False or True', type=bool,
-                    action=argparse.BooleanOptionalAction)
-    ap.add_argument('-rs', '--run_sampling', required=False, default=False,
-                    help='Run up- or downsampling', type=bool,
-                    action=argparse.BooleanOptionalAction)
+                    help='Run butina algorithm, False or True', type=bool)
     ap.add_argument('-ss', '--scaf_split', default=False,
-                    help='Run scaffold split, False or True', type=bool,
-                    action=argparse.BooleanOptionalAction)
+                    help='Run scaffold split, False or True', type=bool)
+
     ap.add_argument('-c', '--committee', default=False,
-                    help='Make committee learner, False or True', type=bool,
-                    action=argparse.BooleanOptionalAction)
-    ap.add_argument('-sl_m', '--sel_mode', required=False, default='uncertainty_sampling',
+                    help='Make committee learner, False or True', type=bool)
+    ap.add_argument('-sl_m', '--selection_mode', required=False, default='uncertainty_sampling',
                     help='Selection mode', type=str)
     ap.add_argument('-b_n', '--n_batch', required=False, default=3,
                     help='Number of samples in the bath', type=int)
-    ap.add_argument('-e_v', '--external_validation_dataset', default='test_DLS.txt',
-                    help='Dataset for external validation')
+
     args = ap.parse_args()
     models = {}
-    print(args.sel_mode)
+    print(type(args.butina))
+
     for m in args.models:
         models[m] = MODELS[m]
-    if args.sel_mode == 'uncertainty_batch_sampling':
+
+    selection = SELECTION_MODE[args.selection_mode]
+
+    if args.selection_mode == 'uncertainty_batch_sampling':
         n_batch = args.n_batch
         batch_mode = True
-        selection = SELECTION_MODE[args.sel_mode]
     else:
         n_batch = 1
         batch_mode = False
-        selection = SELECTION_MODE[args.sel_mode]
 
     sampling_u = SAMPLING[args.sampling]
 
     dataset_path = file_doesnot_exist(args.path, args.file)
+
     dataset = pd.read_csv(dataset_path, index_col=0)
 
     ext_val_dataset_path = file_doesnot_exist(args.path, args.external_validation_dataset)

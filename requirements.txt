@@ -1,0 +1,7 @@
+hyperopt==0.2.5
+optuna==2.5.0
+lightgbm==3.1.1
+modAL
+imblearn==0.7.0
+plotly==4.14.3
+mlxtend==0.18.0
