@@ -399,7 +399,7 @@ class TrainModel:
         return counts[0] / counts[1]
 
     @staticmethod
-    def make_plot(y, n, plot_title):
+    def make_plot(MCC_test, MCC_val, n):
         """
         Make a plot
 
@@ -413,23 +413,16 @@ class TrainModel:
         -------
         plot
         """
-        plot = go.Figure(go.Scatter(
-            x=list(range(0, n)),
-            y=y
-        ))
-        plot.update_layout(
-            xaxis=dict(
-                title='Iteration',
-                tickmode='linear',
-                tick0=0.5,
-                dtick=0.75,
-                showticklabels=False
-            ),
-            yaxis=dict(
-                title=plot_title
-            )
-        )
-        return plot
+        n = np.linspace(0, 1, n)
+        fig = go.Figure()
+        # Add traces
+        fig.add_trace(go.Scatter(x=n, y=MCC_test,
+                                 mode='lines',
+                                 name='MCC plot, test'))
+        fig.add_trace(go.Scatter(x=n, y=MCC_val,
+                                 mode='lines',
+                                 name='MCC plot, validation'))
+        return fig
 
     @staticmethod
     def average_stat(stat_array, window, polyorder):
@@ -448,7 +441,7 @@ class TrainModel:
         stat_array[np.isnan(stat_array)] = 0
         savitzky_golay = savgol_filter(stat_array, window, polyorder)
         max_index = np.argmax(savitzky_golay)
-        return savitzky_golay[max_index], max_index
+        return savitzky_golay[max_index], max_index, savitzky_golay
 
 
     def AL_strategy(self, iteration, X_train, X_test, Y_train, Y_test,
@@ -513,8 +506,6 @@ class TrainModel:
             AL_mcc_scores_val = [0]
 
 
-
-
         for i in range(int(n_queries / self.batch_n) - 1):
             if self.batch_mode:
                 query_idx, query_inst = learner.query(X_pool, n_instances=self.batch_n)
@@ -554,39 +545,34 @@ class TrainModel:
                 AL_mcc_scores_val.append(0)
 
 
-        max_auc_l_test, _ = self.average_stat(AL_auc_l_scores_test, self.W_SG, self.H_SG)
-        max_auc_m_test, _ = self.average_stat(AL_auc_scores_test, self.W_SG, self.H_SG)
-        max_auc_u_test, _ = self.average_stat(AL_auc_u_scores_test, self.W_SG, self.H_SG)
-        max_accuracy_test, _ = self.average_stat(AL_accuracy_scores_test, self.W_SG, self.H_SG)
-        max_f_one_test, _ = self.average_stat(AL_f_one_scores_test, self.W_SG, self.H_SG)
-        max_mcc_test, max_mcc_index = self.average_stat(AL_mcc_scores_test, self.W_SG, self.H_SG)
+        max_auc_l_test, _, _ = self.average_stat(AL_auc_l_scores_test, self.W_SG, self.H_SG)
+        max_auc_m_test, _, _ = self.average_stat(AL_auc_scores_test, self.W_SG, self.H_SG)
+        max_auc_u_test, _, _ = self.average_stat(AL_auc_u_scores_test, self.W_SG, self.H_SG)
+        max_accuracy_test, _, _ = self.average_stat(AL_accuracy_scores_test, self.W_SG, self.H_SG)
+        max_f_one_test, _, _ = self.average_stat(AL_f_one_scores_test, self.W_SG, self.H_SG)
+        max_mcc_test, max_mcc_index, AL_mcc_sm_test = self.average_stat(AL_mcc_scores_test, self.W_SG, self.H_SG)
         performance_stats_test = [max_auc_l_test, max_auc_m_test, max_auc_u_test, max_accuracy_test, max_f_one_test, max_mcc_test]
 
-        max_auc_l_val, _ = self.average_stat(AL_auc_l_scores_val, self.W_SG, self.H_SG)
-        max_auc_m_val, _ = self.average_stat(AL_auc_scores_val, self.W_SG, self.H_SG)
-        max_auc_u_val, _ = self.average_stat(AL_auc_u_scores_val, self.W_SG, self.H_SG)
-        max_accuracy_val, _ = self.average_stat(AL_accuracy_scores_val, self.W_SG, self.H_SG)
-        max_f_one_val, _ = self.average_stat(AL_f_one_scores_val, self.W_SG, self.H_SG)
-        max_mcc_val, max_mcc_index = self.average_stat(AL_mcc_scores_val, self.W_SG, self.H_SG)
+        max_auc_l_val, _, _= self.average_stat(AL_auc_l_scores_val, self.W_SG, self.H_SG)
+        max_auc_m_val, _, _ = self.average_stat(AL_auc_scores_val, self.W_SG, self.H_SG)
+        max_auc_u_val, _, _ = self.average_stat(AL_auc_u_scores_val, self.W_SG, self.H_SG)
+        max_accuracy_val, _, _ = self.average_stat(AL_accuracy_scores_val, self.W_SG, self.H_SG)
+        max_f_one_val, _, _ = self.average_stat(AL_f_one_scores_val, self.W_SG, self.H_SG)
+        max_mcc_val, max_mcc_index, AL_mcc_sm_val = self.average_stat(AL_mcc_scores_val, self.W_SG, self.H_SG)
         performance_stats_val = [max_auc_l_val, max_auc_m_val, max_auc_u_val, max_accuracy_val, max_f_one_val, max_mcc_val]
 
 
-        mcc_plot_test = self.make_plot(AL_mcc_scores_test, n_queries,
-                                  'MCC plot, test')
+        mcc_plot = self.make_plot(AL_mcc_sm_test, AL_mcc_sm_val, n_queries)
 
-        mcc_plot_val = self.make_plot(AL_mcc_scores_val, n_queries,
-                                      'MCC plot, validation')
-        class_balance_plot = self.make_plot(class_balance, n_queries,
-                                            'Class balance')
+        # class_balance_plot = self.make_plot(class_balance, n_queries,
+        #                                     'Class balance')
 
-        mcc_plot_test_path = self.result_dir_path / 'mcc_plot_iteration_test_{}.svg'.format(iteration)
-        mcc_plot_test.write_image(str(mcc_plot_test_path))
+        mcc_plot_path = self.result_dir_path / 'mcc_plot_iteration_{}.svg'.format(iteration)
+        mcc_plot.write_image(str(mcc_plot_path))
 
-        mcc_plot_val_path = self.result_dir_path / 'mcc_plot_iteration_val_{}.svg'.format(iteration)
-        mcc_plot_val.write_image(str(mcc_plot_val_path))
-
-        class_balance_plot_path = self.result_dir_path / 'class_balance_plot_iteration_{}.svg'.format(iteration)
-        class_balance_plot.write_image(str(class_balance_plot_path))
+        #
+        # class_balance_plot_path = self.result_dir_path / 'class_balance_plot_iteration_{}.svg'.format(iteration)
+        # class_balance_plot.write_image(str(class_balance_plot_path))
 
 
 
