@@ -891,7 +891,7 @@ if __name__ == "__main__":
 
     args = ap.parse_args()
     models = {}
-
+    print(args.butina)
     for m in args.models:
         models[m] = MODELS[m]
         print(MODELS[m])
