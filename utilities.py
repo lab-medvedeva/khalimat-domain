@@ -31,10 +31,10 @@ DESCRIPTORS = {'MorganFingerprint': AllChem.GetMorganFingerprintAsBitVect,
                'RDKFingerprint': RDKFingerprint,
                'MACCSkeys': MACCSkeys}
 
-MODELS = {'RandomForestClassifier': RandomForestClassifier(n_jobs=-1),
-          'ExtraTreesClassifier': ExtraTreesClassifier(n_jobs=-1),
-          'LGBM': LGBMClassifier(n_jobs=-1),
-          'XGBClassifier': XGBClassifier(n_jobs=-1)}
+MODELS = {'RandomForestClassifier': RandomForestClassifier(n_jobs=8),
+          'ExtraTreesClassifier': ExtraTreesClassifier(n_jobs=8),
+          'LGBM': LGBMClassifier(n_jobs=8),
+          'XGBClassifier': XGBClassifier(n_jobs=8)}
 
 SAMPLING = {'SMOTE': SMOTE(),
             'ADASYN': ADASYN(),
@@ -48,8 +48,8 @@ SELECTION_MODE = {'uncertainty_batch_sampling': uncertainty_batch_sampling,
                   # 'classifier_uncertainty': classifier_uncertainty
               }
 
-# METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
-METRICS = ['AUC_LB', 'AUC', 'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external']
+METRICS = ['AUC_LB_test', 'AUC_test', 'AUC_UB_test', 'Accuracy_test', 'F1_test', 'MCC_test',
+           'AUC_LB_validation', 'AUC_validation', 'AUC_UB_validation', 'Accuracy_validation', 'F1_validation', 'MCC_validation']
 
 # from https://github.com/yandexdataschool/roc_comparison/blob/master/compare_auc_delong_xu.py
 # AUC comparison adapted from

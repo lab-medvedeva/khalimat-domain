@@ -445,6 +445,7 @@ class TrainModel:
         -------
         """
         stat_array = np.array(stat_array)
+        stat_array[np.isnan(stat_array)] = 0
         savitzky_golay = savgol_filter(stat_array, window, polyorder)
         max_index = np.argmax(savitzky_golay)
         return savitzky_golay[max_index], max_index
@@ -485,17 +486,34 @@ class TrainModel:
                 query_strategy=q_strategy,
                 X_training=X_initial, y_training=y_initial
             )
-        AL_accuracy_scores = [learner.score(X_test, Y_test)]
-        auc_d, (lb_d, ub_d) = self.auc_for_modAL(learner, X_test, Y_test)
-        f_one, mcc = self.f_one_mcc_score(learner, X_test, Y_test)
-        if not math.isnan(mcc):
-            AL_mcc_scores = [mcc]
+        # Calculate initial performance metrics on the test set
+        AL_accuracy_scores_test = [learner.score(X_test, Y_test)]
+        auc_d_test, (lb_d_test, ub_d_test) = self.auc_for_modAL(learner, X_test, Y_test)
+        AL_auc_l_scores_test = [lb_d_test]
+        AL_auc_scores_test = [auc_d_test]
+        AL_auc_u_scores_test = [ub_d_test]
+        f_one_test, mcc_test = self.f_one_mcc_score(learner, X_test, Y_test)
+        AL_f_one_scores_test = [f_one_test]
+        if not math.isnan(mcc_test):
+            AL_mcc_scores_test = [mcc_test]
         else:
-            AL_mcc_scores = [0]
-        AL_auc_l_scores = [lb_d]
-        AL_auc_scores = [auc_d]
-        AL_auc_u_scores = [ub_d]
-        AL_f_one_scores = [f_one]
+            AL_mcc_scores_test = [0]
+
+        # Calculate initial performance metrics on the external validation set
+        AL_accuracy_scores_val = [learner.score(self.external_X, self.external_Y)]
+        auc_d_val, (lb_d_val, ub_d_val) = self.auc_for_modAL(learner, self.external_X, self.external_Y)
+        AL_auc_l_scores_val = [lb_d_val]
+        AL_auc_scores_val = [auc_d_val]
+        AL_auc_u_scores_val = [ub_d_val]
+        f_one_val, mcc_val = self.f_one_mcc_score(learner, self.external_X, self.external_Y)
+        AL_f_one_scores_val = [f_one_val]
+        if not math.isnan(mcc_val):
+            AL_mcc_scores_val = [mcc_val]
+        else:
+            AL_mcc_scores_val = [0]
+
+
+
 
         for i in range(int(n_queries / self.batch_n) - 1):
             if self.batch_mode:
@@ -510,37 +528,67 @@ class TrainModel:
             Y = np.append(Y, y_pool[query_idx])
             class_balance.append(self.calculate_cls_balance(Y))
             X_pool, y_pool = np.delete(X_pool, query_idx, axis=0), np.delete(y_pool, query_idx, axis=0)
-            auc_d, (lb_d, ub_d) = self.auc_for_modAL(learner, X_test, Y_test)
-            AL_auc_scores.append(auc_d)
-            AL_auc_l_scores.append(lb_d)
-            AL_auc_u_scores.append(ub_d)
-            f_one, mcc = self.f_one_mcc_score(learner, X_test, Y_test)
-            if not math.isnan(mcc):
-                AL_mcc_scores.append(mcc)
+
+            AL_accuracy_scores_test.append(learner.score(X_test, Y_test))
+            auc_d_test, (lb_d_test, ub_d_test) = self.auc_for_modAL(learner, X_test, Y_test)
+            AL_auc_scores_test.append(auc_d_test)
+            AL_auc_l_scores_test.append(lb_d_test)
+            AL_auc_u_scores_test.append(ub_d_test)
+            f_one_test, mcc_test = self.f_one_mcc_score(learner, X_test, Y_test)
+            AL_f_one_scores_test.append(f_one_test)
+            if not math.isnan(mcc_test):
+                AL_mcc_scores_test.append(mcc_test)
             else:
-                AL_mcc_scores.append(0)
-            AL_f_one_scores.append(f_one)
-            AL_accuracy_scores.append(learner.score(X_test, Y_test))
+                AL_mcc_scores_test.append(0)
 
-        max_auc_l, _ = self.average_stat(AL_auc_l_scores, self.W_SG, self.H_SG)
-        max_auc_m, _ = self.average_stat(AL_auc_scores, self.W_SG, self.H_SG)
-        max_auc_u, _ = self.average_stat(AL_auc_u_scores, self.W_SG, self.H_SG)
-        max_accuracy, _ = self.average_stat(AL_accuracy_scores, self.W_SG, self.H_SG)
-        max_f_one, _ = self.average_stat(AL_f_one_scores, self.W_SG, self.H_SG)
-        max_mcc, max_mcc_index = self.average_stat(AL_mcc_scores, self.W_SG, self.H_SG)
+            AL_accuracy_scores_val.append(learner.score(self.external_X, self.external_Y))
+            auc_d_val, (lb_d_val, ub_d_val) = self.auc_for_modAL(learner, self.external_X, self.external_Y)
+            AL_auc_scores_val.append(auc_d_val)
+            AL_auc_l_scores_val.append(lb_d_val)
+            AL_auc_u_scores_val.append(ub_d_val)
+            f_one_val, mcc_val = self.f_one_mcc_score(learner, self.external_X, self.external_Y)
+            AL_f_one_scores_val.append(f_one_val)
+            if not math.isnan(mcc_test):
+                AL_mcc_scores_val.append(mcc_val)
+            else:
+                AL_mcc_scores_val.append(0)
 
-        mcc_plot = self.make_plot(AL_mcc_scores, n_queries,
-                                  'MCC plot')
+
+        max_auc_l_test, _ = self.average_stat(AL_auc_l_scores_test, self.W_SG, self.H_SG)
+        max_auc_m_test, _ = self.average_stat(AL_auc_scores_test, self.W_SG, self.H_SG)
+        max_auc_u_test, _ = self.average_stat(AL_auc_u_scores_test, self.W_SG, self.H_SG)
+        max_accuracy_test, _ = self.average_stat(AL_accuracy_scores_test, self.W_SG, self.H_SG)
+        max_f_one_test, _ = self.average_stat(AL_f_one_scores_test, self.W_SG, self.H_SG)
+        max_mcc_test, max_mcc_index = self.average_stat(AL_mcc_scores_test, self.W_SG, self.H_SG)
+        performance_stats_test = [max_auc_l_test, max_auc_m_test, max_auc_u_test, max_accuracy_test, max_f_one_test, max_mcc_test]
+
+        max_auc_l_val, _ = self.average_stat(AL_auc_l_scores_val, self.W_SG, self.H_SG)
+        max_auc_m_val, _ = self.average_stat(AL_auc_scores_val, self.W_SG, self.H_SG)
+        max_auc_u_val, _ = self.average_stat(AL_auc_u_scores_val, self.W_SG, self.H_SG)
+        max_accuracy_val, _ = self.average_stat(AL_accuracy_scores_val, self.W_SG, self.H_SG)
+        max_f_one_val, _ = self.average_stat(AL_f_one_scores_val, self.W_SG, self.H_SG)
+        max_mcc_val, max_mcc_index = self.average_stat(AL_mcc_scores_val, self.W_SG, self.H_SG)
+        performance_stats_val = [max_auc_l_val, max_auc_m_val, max_auc_u_val, max_accuracy_val, max_f_one_val, max_mcc_val]
+
+
+        mcc_plot_test = self.make_plot(AL_mcc_scores_test, n_queries,
+                                  'MCC plot, test')
+
+        mcc_plot_val = self.make_plot(AL_mcc_scores_val, n_queries,
+                                      'MCC plot, validation')
         class_balance_plot = self.make_plot(class_balance, n_queries,
                                             'Class balance')
 
-        mcc_plot_path = self.result_dir_path / 'mcc_plot_iteration_{}.svg'.format(iteration)
-        mcc_plot.write_image(str(mcc_plot_path))
+        mcc_plot_test_path = self.result_dir_path / 'mcc_plot_iteration_test_{}.svg'.format(iteration)
+        mcc_plot_test.write_image(str(mcc_plot_test_path))
+
+        mcc_plot_val_path = self.result_dir_path / 'mcc_plot_iteration_val_{}.svg'.format(iteration)
+        mcc_plot_val.write_image(str(mcc_plot_val_path))
 
         class_balance_plot_path = self.result_dir_path / 'class_balance_plot_iteration_{}.svg'.format(iteration)
         class_balance_plot.write_image(str(class_balance_plot_path))
 
-        performance_stats = [max_auc_l, max_auc_m, max_auc_u, max_accuracy, max_f_one, max_mcc]
+
 
         # max_mcc_index = np.argmax(AL_mcc_scores)
         final_X_train, final_Y_train = X[0: max_mcc_index * self.batch_n + n_initial, ], Y[0: max_mcc_index * self.batch_n + n_initial, ]
@@ -555,8 +603,8 @@ class TrainModel:
         predicted_labels = self.final_cls.predict(X_test)
         f1_ext, mcc_ext = self.f_one_mcc_score(self.final_cls, self.external_X, self.external_Y)
         performance_stats_external = [f1_ext, mcc_ext]
-        print('AL, DeepScams ds: ', *performance_stats_external)
-        return performance_stats, predicted_labels, performance_stats_external
+        print('AL, DeepScams ds: ', *performance_stats_val)
+        return performance_stats_test, predicted_labels, performance_stats_val
 
     @staticmethod
     def calculate_iter_AL(data, spit_ratio,
@@ -586,13 +634,19 @@ class TrainModel:
         """
         if df_with_stats is None:
             df_with_stats = pd.DataFrame(performance_stats,
-                                         columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
-                                                  'AUC_UB', 'Accuracy', 'F1_test', 'MCC_test', 'F1_external', 'MCC_external'])
+                                         columns=['Iteration', 'Method', 'AUC_LB_test', 'AUC_test',
+                                                  'AUC_UB_test', 'Accuracy_test', 'F1_test', 'MCC_test',
+                                                  'AUC_LB_validation', 'AUC_validation',
+                                                  'AUC_UB_validation', 'Accuracy_validation', 'F1_validation', 'MCC_validation'])
         else:
             df_with_stats = pd.concat([df_with_stats,
                                        pd.DataFrame(performance_stats,
-                                                    columns=['Iteration', 'Method', 'AUC_LB', 'AUC',
-                                                             'AUC_UB', 'Accuracy', 'F1', 'MCC', 'F1_external', 'MCC_external'])])
+                                                    columns=['Iteration', 'Method', 'AUC_LB_test', 'AUC_test',
+                                                             'AUC_UB_test', 'Accuracy_test', 'F1_test', 'MCC_test',
+                                                             'AUC_LB_validation', 'AUC_validation',
+                                                             'AUC_UB_validation', 'Accuracy_validation',
+                                                             'F1_validation', 'MCC_validation']
+                                                    )])
         # F1_external', 'MCC_external'
         return df_with_stats
 
@@ -663,14 +717,18 @@ class TrainModel:
             X_train, Y_train = self.sampl(X_train, Y_train, self.sampling)
         self.SCAMsCls.fit(X_train, Y_train)
         test_predicted = self.SCAMsCls.predict_proba(X_test)
-        predicted_labels = self.SCAMsCls.predict(X_test)
-        f_one, mcc = self.f_one_mcc_score(self.SCAMsCls, X_test, Y_test)
+        f_one_test, mcc_test = self.f_one_mcc_score(self.SCAMsCls, X_test, Y_test)
         test_accuracy = accuracy_score(Y_test, self.SCAMsCls.predict(X_test))
-        auc_d, (lb_d, ub_d) = calc_auc_ci(Y_test, test_predicted[:, 1])
+        auc_d_test, (lb_d_test, ub_d_test) = calc_auc_ci(Y_test, test_predicted[:, 1])
+        performance_stats_test = [lb_d_test, auc_d_test, ub_d_test, test_accuracy, f_one_test, mcc_test]
+        predicted_labels = self.SCAMsCls.predict(X_test)
 
-        performance_stats_test = [lb_d, auc_d, ub_d, test_accuracy, f_one, mcc]
-        f1_ext, mcc_ext = self.f_one_mcc_score(self.SCAMsCls, self.external_X, self.external_Y)
-        performance_stats_external = [f1_ext, mcc_ext]
+
+        val_predicted = self.SCAMsCls.predict_proba(self.external_X)
+        f_one_val, mcc_val = self.f_one_mcc_score(self.SCAMsCls, self.external_X, self.external_Y)
+        auc_d_val, (lb_d_val, ub_d_val) = calc_auc_ci(self.external_Y, val_predicted[:, 1])
+        val_accuracy = accuracy_score(self.external_Y, self.SCAMsCls.predict(self.external_X))
+        performance_stats_external = [lb_d_val, auc_d_val, ub_d_val, val_accuracy, f_one_val, mcc_val]
         print('non AL, DeepScams ds: ', *performance_stats_external)
         return performance_stats_test, predicted_labels, performance_stats_external
 
@@ -693,28 +751,26 @@ class TrainModel:
                 else:
                     X_train, X_test, Y_train, Y_test = self.split_train_val(self.dataset, self.test_split_r)
                 # Run non-AL model and save the results
-                [lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al,
-                 mcc_n_al], y_non_AL_model, [f1_ext_non_AL, mcc_ext_non_AL] = self.non_AL_strategy(model_name,
+                [lb_d_n_al_t, auc_d_n_al_t, ub_d_n_al_t, accuracy_n_al_t, f_one_n_al_t,
+                 mcc_n_al_t], y_non_AL_model, \
+                [lb_d_n_al_v, auc_d_n_al_v, ub_d_n_al_v, accuracy_n_al_v, f1_non_AL_v, mcc_non_AL_v] = self.non_AL_strategy(model_name,
                                                                   model_function,
                                                                   X_train, Y_train,
                                                                   X_test, Y_test)
 
                 performance_stats_n_AL.append(
-                    [i, model_name, lb_d_n_al, auc_d_n_al, ub_d_n_al, accuracy_n_al, f_one_n_al, mcc_n_al, f1_ext_non_AL, mcc_ext_non_AL]) #  f1_ext_non_AL, mcc_ext_non_AL
+                    [i, model_name, lb_d_n_al_t, auc_d_n_al_t, ub_d_n_al_t, accuracy_n_al_t, f_one_n_al_t, mcc_n_al_t,
+                     lb_d_n_al_v, auc_d_n_al_v, ub_d_n_al_v, accuracy_n_al_v, f1_non_AL_v, mcc_non_AL_v]) #  f1_ext_non_AL, mcc_ext_non_AL
 
                 # Run AL model and save the results
                 n_q = int(self.P_R_MCC * self.calculate_iter_AL(self.dataset, self.test_split_r, self.initial))
-                [lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al], y_AL_model, [f1_ext_AL, mcc_ext_AL] = self.AL_strategy(i, X_train,
-                                                                                                           X_test,
-                                                                                                           Y_train,
-                                                                                                           Y_test,
-                                                                                                           self.initial,
-                                                                                                           n_q,
-                                                                                                           cls=model_function,
-                                                                                                           name=model_name,
-                                                                                                           q_strategy=self.selection)
+                [lb_d_al_t, auc_d_al_t, ub_d_al_t, accuracy_al_t, f_one_al_t, mcc_al_t], y_AL_model, \
+                [lb_d_al_v, auc_d_al_v, ub_d_al_v, accuracy_al_v, f1_ext_AL_v, mcc_ext_AL_v] = self.AL_strategy(i, X_train, X_test, Y_train, Y_test,
+                                                               self.initial, n_q, cls=model_function,
+                                                               name=model_name, q_strategy=self.selection)
                 performance_stats_AL.append(
-                    [i, model_name, lb_d_al, auc_d_al, ub_d_al, accuracy_al, f_one_al, mcc_al, f1_ext_AL, mcc_ext_AL]) # f1_ext_AL, mcc_ext_AL
+                    [i, model_name, lb_d_al_t, auc_d_al_t, ub_d_al_t, accuracy_al_t, f_one_al_t, mcc_al_t,
+                     lb_d_al_v, auc_d_al_v, ub_d_al_v, accuracy_al_v, f1_ext_AL_v, mcc_ext_AL_v]) # f1_ext_AL, mcc_ext_AL
 
                 cont_tb = mcnemar_table(y_target=Y_test,
                                         y_model1=y_non_AL_model,
@@ -835,10 +891,10 @@ if __name__ == "__main__":
 
     args = ap.parse_args()
     models = {}
-    print(type(args.butina))
 
     for m in args.models:
         models[m] = MODELS[m]
+        print(MODELS[m])
 
     selection = SELECTION_MODE[args.selection_mode]
 
