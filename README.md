@@ -50,23 +50,17 @@ To ensure that our hypothesis is generalizable and not limited to a single use c
 # Results
 Results could be found [here](Description/Update.pdf)
 
-[comment]: <> (I calculated t-stats. They are presented below)
 
-[comment]: <> (| Metrics        | p_adj           | significant  |)
+# Folder names
 
-[comment]: <> (| ------------- |:-------------:| -----:|)
-
-[comment]: <> (| AUC_LB      | 4.04 | False |)
-
-[comment]: <> (| AUC     | 4.72     |   False |)
-
-[comment]: <> (| AUC_UB | 4.47     |    False |)
-
-[comment]: <> (| Accuracy | 0.15     |    False |)
-
-[comment]: <> (| F1 | 0.00045     |    True |)
-
-[comment]: <> (| MCC | 0.00066     |    True |)
+| Model name        | Sampling           | Dataset  | Split |
+| ------------- |:-------------:| -----:|-----:|
+| RF (RandomForestClassifier)      | N (No sampling) | SF (SCAMS_filtered.csv) | TTS (train_test_split) | 
+| LGBM (LGBMClassifier)     | SMOTE    |   SP1 (SCAMS_balanced_with_positive.csv) | B (split_with_butina) |
+| XGBC (XGBClassifier) | ADASYN  |    SP2 (SCAMS_added_positives_653_1043.csv) | SS (split_with_scaffold_splitter) |
+| ETC (ExtraTreesClassifier) | CondensedNearestNeighbour (CNN)     |    __ | __ |
+| __ | InstanceHardnessThreshold (IHT)    |    __ | __ |
 
 
 
+For example, LGBM_N_SF_SS stands for run with LGBMClassifier with no sampling on SCAMS_filtered.csv and scaffold_splitter
