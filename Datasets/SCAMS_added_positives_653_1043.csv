@@ -1,4 +1,4 @@
-Cdiv ID,Smiles String,Cdiv ID,agg?
+ID,Smiles String,Cdiv ID,agg?
 0,FC(F)(F)S(=O)(=O)c1ccc(cc1)S(=O)(=O)C(F)(F)F,0,0
 1,N\N=C/1\C(=O)N(CC(=O)Nc2ccccc2)c3ccccc13,1,0
 2,COc1ccc2O\C(=N\NC(=O)c3ccc(Br)cc3)\C(=Cc2c1)C(=O)N,2,0
