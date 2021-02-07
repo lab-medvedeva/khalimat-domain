@@ -43,9 +43,7 @@ SAMPLING = {'SMOTE': SMOTE(),
             'No sampling': None}
 
 SELECTION_MODE = {'uncertainty_batch_sampling': uncertainty_batch_sampling,
-                  'uncertainty_sampling': uncertainty_sampling,
-                  # 'classifier_entropy': classifier_entropy,
-                  # 'classifier_uncertainty': classifier_uncertainty
+                  'uncertainty_sampling': uncertainty_sampling
               }
 
 METRICS = ['AUC_LB_test', 'AUC_test', 'AUC_UB_test', 'Accuracy_test', 'F1_test', 'MCC_test',
