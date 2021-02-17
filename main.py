@@ -10,6 +10,7 @@ import time
 
 #  Importing packages for visualization
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 
 
 #  Importing modules from sklearn
@@ -212,6 +213,19 @@ class TrainModel:
         self.external_Y = None
         self.external_val_res = None
         self.selection = selection
+        self.AL_CV_MCC_test = None
+        self.AL_CV_MCC_val = None
+        self.AL_CV_AUC_LB_test = None
+        self.AL_CV_AUC_LB_val = None
+        self.AL_CV_AUC_test = None
+        self.AL_CV_AUC_val = None
+        self.AL_CV_AUC_UB_test = None
+        self.AL_CV_AUC_UB_val = None
+        self.AL_CV_accuracy_test = None
+        self.AL_CV_accuracy_val = None
+        self.AL_CV_F1_test = None
+        self.AL_CV_F1_val = None
+
 
     def run(self):
         """
@@ -237,6 +251,7 @@ class TrainModel:
         self.calculate_t_test()
         # print(self.max_mcc_data_percent)
         self.make_radar_chart()
+        self.error_plot_over_iterations()
 
 
     @staticmethod
@@ -443,6 +458,28 @@ class TrainModel:
         max_index = np.argmax(savitzky_golay)
         return savitzky_golay[max_index], max_index, savitzky_golay
 
+    @staticmethod
+    def add_fold(statistic_array, fold_results):
+        """
+        Add fold to the array with performance statistics
+
+        Parameters
+        ----------
+        statistic_array:
+            list, array with performance statistics
+        fold_results
+            list, array with fold results
+
+        Returns
+        -------
+
+        """
+        if statistic_array is None:
+            statistic_array = [fold_results]
+        else:
+            statistic_array.append(fold_results)
+        return statistic_array
+
 
     def AL_strategy(self, iteration, X_train, X_test, Y_train, Y_test,
                     n_initial, n_queries,
@@ -544,25 +581,37 @@ class TrainModel:
             else:
                 AL_mcc_scores_val.append(0)
 
-
-        max_auc_l_test, _, _ = self.average_stat(AL_auc_l_scores_test, self.W_SG, self.H_SG)
-        max_auc_m_test, _, _ = self.average_stat(AL_auc_scores_test, self.W_SG, self.H_SG)
-        max_auc_u_test, _, _ = self.average_stat(AL_auc_u_scores_test, self.W_SG, self.H_SG)
-        max_accuracy_test, _, _ = self.average_stat(AL_accuracy_scores_test, self.W_SG, self.H_SG)
-        max_f_one_test, _, _ = self.average_stat(AL_f_one_scores_test, self.W_SG, self.H_SG)
-        max_mcc_test, max_mcc_index, AL_mcc_sm_test = self.average_stat(AL_mcc_scores_test, self.W_SG, self.H_SG)
+        # Piece of terrible code practice
+        max_auc_l_test, _, smoothed_auc_l_test = self.average_stat(AL_auc_l_scores_test, self.W_SG, self.H_SG)
+        self.AL_CV_AUC_LB_test = self.add_fold(self.AL_CV_AUC_LB_test, smoothed_auc_l_test)
+        max_auc_m_test, _, smoothed_auc_test = self.average_stat(AL_auc_scores_test, self.W_SG, self.H_SG)
+        self.AL_CV_AUC_test = self.add_fold(self.AL_CV_AUC_test, smoothed_auc_test)
+        max_auc_u_test, _, smoothed_auc_u_test = self.average_stat(AL_auc_u_scores_test, self.W_SG, self.H_SG)
+        self.AL_CV_AUC_UB_test = self.add_fold(self.AL_CV_AUC_UB_test, smoothed_auc_u_test)
+        max_accuracy_test, _, smoothed_accuracy_test = self.average_stat(AL_accuracy_scores_test, self.W_SG, self.H_SG)
+        self.AL_CV_accuracy_test = self.add_fold(self.AL_CV_accuracy_test, smoothed_accuracy_test)
+        max_f_one_test, _, smoothed_f_one_test = self.average_stat(AL_f_one_scores_test, self.W_SG, self.H_SG)
+        self.AL_CV_F1_test = self.add_fold(self.AL_CV_F1_test, smoothed_f_one_test)
+        max_mcc_test, max_mcc_index, smoothed_mcc_test = self.average_stat(AL_mcc_scores_test, self.W_SG, self.H_SG)
+        self.AL_CV_MCC_test = self.add_fold(self.AL_CV_MCC_test, smoothed_mcc_test)
         performance_stats_test = [max_auc_l_test, max_auc_m_test, max_auc_u_test, max_accuracy_test, max_f_one_test, max_mcc_test]
 
-        max_auc_l_val, _, _= self.average_stat(AL_auc_l_scores_val, self.W_SG, self.H_SG)
-        max_auc_m_val, _, _ = self.average_stat(AL_auc_scores_val, self.W_SG, self.H_SG)
-        max_auc_u_val, _, _ = self.average_stat(AL_auc_u_scores_val, self.W_SG, self.H_SG)
-        max_accuracy_val, _, _ = self.average_stat(AL_accuracy_scores_val, self.W_SG, self.H_SG)
-        max_f_one_val, _, _ = self.average_stat(AL_f_one_scores_val, self.W_SG, self.H_SG)
-        max_mcc_val, max_mcc_index, AL_mcc_sm_val = self.average_stat(AL_mcc_scores_val, self.W_SG, self.H_SG)
+        max_auc_l_val, _, smoothed_auc_l_val = self.average_stat(AL_auc_l_scores_val, self.W_SG, self.H_SG)
+        self.AL_CV_AUC_LB_val = self.add_fold(self.AL_CV_AUC_LB_val, smoothed_auc_l_val)
+        max_auc_m_val, _, smoothed_auc_val = self.average_stat(AL_auc_scores_val, self.W_SG, self.H_SG)
+        self.AL_CV_AUC_val = self.add_fold(self.AL_CV_AUC_val, smoothed_auc_val)
+        max_auc_u_val, _, smoothed_auc_u_val = self.average_stat(AL_auc_u_scores_val, self.W_SG, self.H_SG)
+        self.AL_CV_AUC_UB_val = self.add_fold(self.AL_CV_AUC_UB_val, smoothed_auc_u_val)
+        max_accuracy_val, _, smoothed_accuracy_val = self.average_stat(AL_accuracy_scores_val, self.W_SG, self.H_SG)
+        self.AL_CV_accuracy_val = self.add_fold(self.AL_CV_accuracy_val, smoothed_accuracy_val)
+        max_f_one_val, _, smoothed_f_one_val = self.average_stat(AL_f_one_scores_val, self.W_SG, self.H_SG)
+        self.AL_CV_F1_val = self.add_fold(self.AL_CV_F1_val, smoothed_f_one_val)
+        max_mcc_val, max_mcc_index, smoothed_mcc_val = self.average_stat(AL_mcc_scores_val, self.W_SG, self.H_SG)
+        self.AL_CV_MCC_val = self.add_fold(self.AL_CV_MCC_val, smoothed_mcc_val)
         performance_stats_val = [max_auc_l_val, max_auc_m_val, max_auc_u_val, max_accuracy_val, max_f_one_val, max_mcc_val]
 
 
-        mcc_plot = self.make_plot(AL_mcc_sm_test, AL_mcc_sm_val, n_queries)
+        mcc_plot = self.make_plot(smoothed_mcc_test, smoothed_mcc_val, n_queries)
 
         # class_balance_plot = self.make_plot(class_balance, n_queries,
         #                                     'Class balance')
@@ -830,6 +879,43 @@ class TrainModel:
         )
         radar_plot_path = self.result_dir_path / 'AL_non_AL_performance.svg'
         radar.write_image(str(radar_plot_path))
+
+    def error_plot_over_iterations(self, label_fontsize=22,
+                                   tick_fontsize=20):
+        perf_stats = {'MCC test': self.AL_CV_MCC_test,
+                      'MCC validation': self.AL_CV_MCC_val,
+                      'AUC LB test': self.AL_CV_AUC_LB_test,
+                      'AUC LB validation': self.AL_CV_AUC_LB_val,
+                      'AUC test': self.AL_CV_AUC_test,
+                      'AUC validation': self.AL_CV_AUC_val,
+                      'AUC UB test': self.AL_CV_AUC_UB_test,
+                      'AUC UB validation': self.AL_CV_AUC_UB_val,
+                      'Accuracy test': self.AL_CV_accuracy_test,
+                      'Accuracy validation': self.AL_CV_accuracy_val,
+                      'F1 score test': self.AL_CV_F1_test,
+                      'F1 score validation': self.AL_CV_F1_val}
+
+        for met_name, met_array in perf_stats.items():
+            x = np.array(range(1, len(met_array[0])+1))
+            np_met_array = np.array(met_array)
+            np_met_mean = np_met_array.mean(axis=0)
+            np_met_std = np_met_array.std(axis=0)
+            fig, ax = plt.subplots(figsize=(15, 10))
+            ax.errorbar(x, np_met_mean, yerr=np_met_std, color='red', fmt='.', markersize='10', ecolor='red', capsize=4, elinewidth=2,
+                        label=met_name)
+            ax.set_title('The mean {} and std accross 10 fold cross validation'.format(met_name),
+                         fontdict={'fontsize': label_fontsize,
+                                   'fontweight': 'bold'})
+            ax.set_xlabel('AL iteration')  # Add x label
+            ax.set_ylabel('{} value'.format(met_name))  # Add y label
+            ax.title.set_fontsize(label_fontsize)  # Set title size
+            ax.xaxis.label.set_fontsize(label_fontsize)  # Set x labels size
+            ax.yaxis.label.set_fontsize(label_fontsize)  # Set y labels size
+            ax.tick_params(axis="x", labelsize=tick_fontsize)  # Set x tick size
+            ax.tick_params(axis="y", labelsize=tick_fontsize)  # Set y tick size
+            fig.savefig(self.result_dir_path / '{}.png'.format(met_name))
+
+
 
 
 if __name__ == "__main__":

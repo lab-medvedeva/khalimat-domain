@@ -43,11 +43,12 @@ SAMPLING = {'SMOTE': SMOTE(),
             'No sampling': None}
 
 SELECTION_MODE = {'uncertainty_batch_sampling': uncertainty_batch_sampling,
-                  'uncertainty_sampling': uncertainty_sampling
-              }
+                  'uncertainty_sampling': uncertainty_sampling}
 
-METRICS = ['AUC_LB_test', 'AUC_test', 'AUC_UB_test', 'Accuracy_test', 'F1_test', 'MCC_test',
-           'AUC_LB_validation', 'AUC_validation', 'AUC_UB_validation', 'Accuracy_validation', 'F1_validation', 'MCC_validation']
+METRICS = ['AUC_LB_test', 'AUC_test', 'AUC_UB_test', 'Accuracy_test',
+           'F1_test', 'MCC_test', 'AUC_LB_validation', 'AUC_validation',
+           'AUC_UB_validation', 'Accuracy_validation', 'F1_validation',
+           'MCC_validation']
 
 # from https://github.com/yandexdataschool/roc_comparison/blob/master/compare_auc_delong_xu.py
 # AUC comparison adapted from
