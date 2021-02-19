@@ -1,0 +1,5 @@
+,AUC_LB_test,AUC_test,AUC_UB_test,Accuracy_test,F1_test,MCC_test,AUC_LB_validation,AUC_validation,AUC_UB_validation,Accuracy_validation,F1_validation,MCC_validation
+AL_F,16.0,15.0,15.0,4.0,13.0,5.0,6.0,6.0,6.0,2,2,3.0
+AL_T,17.0,18.0,18.0,29.0,20.0,27.0,27.0,27.0,27.0,28,25,29.0
+N_AL_F,,,,,,,,,,2,4,
+N_AL_T,,,,,,1.0,,,,1,2,1.0
