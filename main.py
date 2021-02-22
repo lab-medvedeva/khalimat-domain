@@ -835,7 +835,7 @@ class TrainModel:
             self.non_AL_stats = self.make_df_with_stats(self.non_AL_stats, performance_stats_n_AL)
 
             self.AL_stats = self.make_df_with_stats(self.AL_stats, performance_stats_AL)
-            # max_mcc_val, mcc_val_retrained, max_mcc_test, mcc_test_retrained
+
             self.smoothed_retrain = pd.DataFrame.from_dict(self.smoothed_retrain, orient='index',
                                                            columns=['MCC validation, smoothed',
                                                                     'MCC validation, retrained',
@@ -867,7 +867,7 @@ class TrainModel:
                                                         't-test stat', 'p-value', 'p_adj',
                                                         'is_significant'])  # Save results as a DataFrame
         print(self.t_test)
-        self.t_test.to_csv(self.result_dir_path / 't-test_stats.csv')  # Save table with results
+        self.t_test.to_csv(self.result_dir_path / 't-test_stats.csv')  # Save a table with results
 
     def make_radar_chart(self):
         """
