@@ -1,0 +1,13 @@
+,model_name,dataset,comparison,p_val_adj,is_significant
+test_LGBM_N_SF_TTS_non_AL_vs_retrained_validation,LGBM_N_SF_TTS,validation,AL vs retrained,0.002519640189,TRUE
+test_LGBM_N_SF_TTS_non_AL_vs_retrained_test,LGBM_N_SF_TTS,test,AL vs retrained,0.07503069193,FALSE
+test_LGBM_N_SF_SS_non_AL_vs_retrained_validation,LGBM_N_SF_SS,validation,AL vs retrained,0,TRUE
+test_LGBM_N_SF_SS_non_AL_vs_retrained_test,LGBM_N_SF_SS,test,AL vs retrained,0.005550015076,TRUE
+test_LGBM_N_SF_B_non_AL_vs_retrained_validation,LGBM_N_SF_B,validation,AL vs retrained,0.0001109070071,TRUE
+test_LGBM_N_SF_B_non_AL_vs_retrained_test,LGBM_N_SF_B,test,AL vs retrained,0.04835763117,TRUE
+test_LGBM_N_SF_TTS_smoothed_vs_retrained_validation,LGBM_N_SF_TTS,validation,smoothed vs retrained,3.520861454,FALSE
+test_LGBM_N_SF_TTS_smoothed_vs_retrained_test,LGBM_N_SF_TTS,test,smoothed vs retrained,3.765309523,FALSE
+test_LGBM_N_SF_SS_smoothed_vs_retrained_validation,LGBM_N_SF_SS,validation,smoothed vs retrained,1.17664203,FALSE
+test_LGBM_N_SF_SS_smoothed_vs_retrained_test,LGBM_N_SF_SS,test,smoothed vs retrained,3.768473075,FALSE
+test_LGBM_N_SF_B_smoothed_vs_retrained_validation,LGBM_N_SF_B,validation,smoothed vs retrained,3.675515122,FALSE
+test_LGBM_N_SF_B_smoothed_vs_retrained_test,LGBM_N_SF_B,test,smoothed vs retrained,3.697981412,FALSE
