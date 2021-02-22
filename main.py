@@ -225,6 +225,7 @@ class TrainModel:
         self.AL_CV_accuracy_val = None
         self.AL_CV_F1_test = None
         self.AL_CV_F1_val = None
+        self.smoothed_retrain = {}
 
 
     def run(self):
@@ -252,6 +253,7 @@ class TrainModel:
         # print(self.max_mcc_data_percent)
         self.make_radar_chart()
         self.error_plot_over_iterations()
+        self.plot_retrain_delta()
 
 
     @staticmethod
@@ -414,7 +416,8 @@ class TrainModel:
         return counts[0] / counts[1]
 
     @staticmethod
-    def make_plot(MCC_test, MCC_val, n):
+    def make_plot(MCC_test_initial, MCC_test_smoothed,
+                  MCC_val_initial, MCC_val_smoothed, n):
         """
         Make a plot
 
@@ -431,12 +434,18 @@ class TrainModel:
         n = np.linspace(0, 1, n)
         fig = go.Figure()
         # Add traces
-        fig.add_trace(go.Scatter(x=n, y=MCC_test,
+        fig.add_trace(go.Scatter(x=n, y=MCC_test_initial,
                                  mode='lines',
-                                 name='MCC plot, test'))
-        fig.add_trace(go.Scatter(x=n, y=MCC_val,
+                                 name='MCC plot, initial, test'))
+        fig.add_trace(go.Scatter(x=n, y=MCC_test_smoothed,
                                  mode='lines',
-                                 name='MCC plot, validation'))
+                                 name='MCC plot, smoothed, test'))
+        fig.add_trace(go.Scatter(x=n, y=MCC_val_initial,
+                                 mode='lines',
+                                 name='MCC plot, initial, validation'))
+        fig.add_trace(go.Scatter(x=n, y=MCC_val_smoothed,
+                                 mode='lines',
+                                 name='MCC plot, smoothed, validation'))
         return fig
 
     @staticmethod
@@ -592,7 +601,7 @@ class TrainModel:
         self.AL_CV_accuracy_test = self.add_fold(self.AL_CV_accuracy_test, smoothed_accuracy_test)
         max_f_one_test, _, smoothed_f_one_test = self.average_stat(AL_f_one_scores_test, self.W_SG, self.H_SG)
         self.AL_CV_F1_test = self.add_fold(self.AL_CV_F1_test, smoothed_f_one_test)
-        max_mcc_test, max_mcc_index, smoothed_mcc_test = self.average_stat(AL_mcc_scores_test, self.W_SG, self.H_SG)
+        max_mcc_test, max_mcc_index_test, smoothed_mcc_test = self.average_stat(AL_mcc_scores_test, self.W_SG, self.H_SG)
         self.AL_CV_MCC_test = self.add_fold(self.AL_CV_MCC_test, smoothed_mcc_test)
         performance_stats_test = [max_auc_l_test, max_auc_m_test, max_auc_u_test, max_accuracy_test, max_f_one_test, max_mcc_test]
 
@@ -606,12 +615,13 @@ class TrainModel:
         self.AL_CV_accuracy_val = self.add_fold(self.AL_CV_accuracy_val, smoothed_accuracy_val)
         max_f_one_val, _, smoothed_f_one_val = self.average_stat(AL_f_one_scores_val, self.W_SG, self.H_SG)
         self.AL_CV_F1_val = self.add_fold(self.AL_CV_F1_val, smoothed_f_one_val)
-        max_mcc_val, max_mcc_index, smoothed_mcc_val = self.average_stat(AL_mcc_scores_val, self.W_SG, self.H_SG)
+        max_mcc_val, max_mcc_index_val, smoothed_mcc_val = self.average_stat(AL_mcc_scores_val, self.W_SG, self.H_SG)
         self.AL_CV_MCC_val = self.add_fold(self.AL_CV_MCC_val, smoothed_mcc_val)
         performance_stats_val = [max_auc_l_val, max_auc_m_val, max_auc_u_val, max_accuracy_val, max_f_one_val, max_mcc_val]
 
 
-        mcc_plot = self.make_plot(smoothed_mcc_test, smoothed_mcc_val, n_queries)
+        mcc_plot = self.make_plot(AL_mcc_scores_test, smoothed_mcc_test,
+                                  AL_mcc_scores_val, smoothed_mcc_val, n_queries)
 
         # class_balance_plot = self.make_plot(class_balance, n_queries,
         #                                     'Class balance')
@@ -626,20 +636,29 @@ class TrainModel:
 
 
         # max_mcc_index = np.argmax(AL_mcc_scores)
-        final_X_train, final_Y_train = X[0: max_mcc_index * self.batch_n + n_initial, ], Y[0: max_mcc_index * self.batch_n + n_initial, ]
+
+        final_X_train_val, final_Y_train_val = X[0: max_mcc_index_val * self.batch_n + n_initial, ], Y[0: max_mcc_index_val * self.batch_n + n_initial, ]
+
         if self.max_mcc_data_percent is None:
             self.max_mcc_data_percent = []
+        self.max_mcc_data_percent.append((final_X_train_val.shape[0] / X_train.shape[0]) * 100)
+        self.final_cls_val = cls
+        self.final_cls_val.fit(final_X_train_val, final_Y_train_val)
+        f1_one_val_retrained, mcc_val_retrained = self.f_one_mcc_score(self.final_cls_val, self.external_X, self.external_Y)
+        performance_stats_external = [f1_one_val_retrained, mcc_val_retrained]
+        predicted_labels = self.final_cls_val.predict(X_test)
 
-        self.max_mcc_data_percent.append((final_X_train.shape[0] / X_train.shape[0]) * 100)
+        final_X_train_test, final_Y_train_test = X[0: max_mcc_index_test * self.batch_n + n_initial, ], \
+                                                 Y[0: max_mcc_index_test * self.batch_n + n_initial, ]
+        self.final_cls_test = cls
+        self.final_cls_test.fit(final_X_train_test, final_Y_train_test)
+        f1_one_test_retrained, mcc_test_retrained = self.f_one_mcc_score(self.final_cls_test, X_test,
+                                                                       Y_test)
 
-        self.final_cls = cls
-        self.final_cls.fit(final_X_train, final_Y_train)
-        f_one_final, mcc_final = self.f_one_mcc_score(self.final_cls, X_test, Y_test)
-        predicted_labels = self.final_cls.predict(X_test)
-        f1_ext, mcc_ext = self.f_one_mcc_score(self.final_cls, self.external_X, self.external_Y)
-        performance_stats_external = [f1_ext, mcc_ext]
+        self.smoothed_retrain[iteration] = [max_mcc_val, mcc_val_retrained, max_mcc_test, mcc_test_retrained]
         print('AL, DeepScams ds: ', *performance_stats_val)
         return performance_stats_test, predicted_labels, performance_stats_val
+
 
     @staticmethod
     def calculate_iter_AL(data, spit_ratio,
@@ -696,7 +715,7 @@ class TrainModel:
         split_r: int, train/test split ratio
         id_name: str, id column name
         x_column_name: str, descriptor column name
-        y_column_name str, class column name
+        y_column_name: str, class column name
 
         Returns
         _______
@@ -816,11 +835,19 @@ class TrainModel:
             self.non_AL_stats = self.make_df_with_stats(self.non_AL_stats, performance_stats_n_AL)
 
             self.AL_stats = self.make_df_with_stats(self.AL_stats, performance_stats_AL)
+            # max_mcc_val, mcc_val_retrained, max_mcc_test, mcc_test_retrained
+            self.smoothed_retrain = pd.DataFrame.from_dict(self.smoothed_retrain, orient='index',
+                                                           columns=['MCC validation, smoothed',
+                                                                    'MCC validation, retrained',
+                                                                    'MCC test, smoothed',
+                                                                    'MCC test, retrained'])
+
 
         mc_nemar_stats = pd.DataFrame(mc_nemar_stats, columns=['Model name', 'Iteration',
                                                                'chi-squared', 'p-value'])
         self.non_AL_stats.to_csv(self.result_dir_path / 'non_AL_stats.csv')
         self.AL_stats.to_csv(self.result_dir_path / 'AL_stats.csv')
+        self.smoothed_retrain.to_csv(self.result_dir_path / 'difference_smoothed_retrained.csv')
         mc_nemar_stats.to_csv(self.result_dir_path / 'mc_nemar_stats.csv')
 
     def calculate_t_test(self):
@@ -854,7 +881,6 @@ class TrainModel:
             max_perf = 1
         else:
             max_perf = max_perf + max_perf * 0.1
-
 
         radar = go.Figure()
         radar.add_trace(go.Scatterpolar(
@@ -916,6 +942,30 @@ class TrainModel:
             fig.savefig(self.result_dir_path / '{}.png'.format(met_name))
 
 
+    def plot_retrain_delta(self, label_fontsize=22,
+                                   tick_fontsize=20):
+        fig, ax = plt.subplots(figsize=(15, 10))
+        x = self.smoothed_retrain.index
+        MCC_val_smoothed = self.smoothed_retrain['MCC validation, smoothed']
+        MCC_val_retrained = self.smoothed_retrain['MCC validation, retrained']
+        MCC_test_smoothed = self.smoothed_retrain['MCC test, smoothed']
+        MCC_test_retrained = self.smoothed_retrain['MCC test, retrained']
+        ax.plot(x, MCC_val_smoothed, label='MCC validation, smoothed')
+        ax.plot(x, MCC_val_retrained, label='MCC validation, retrained')
+        ax.plot(x, MCC_test_smoothed, label='MCC test, smoothed')
+        ax.plot(x, MCC_test_retrained, label='MCC test, retrained')
+        ax.legend()
+        ax.set_title('The difference between the max smoothed and retrained performance value ',
+                     fontdict={'fontsize': label_fontsize,
+                               'fontweight': 'bold'})
+        ax.set_xlabel('Fold')  # Add x label
+        ax.set_ylabel('MCC value')  # Add y label
+        ax.title.set_fontsize(label_fontsize)  # Set title size
+        ax.xaxis.label.set_fontsize(label_fontsize)  # Set x labels size
+        ax.yaxis.label.set_fontsize(label_fontsize)  # Set y labels size
+        ax.tick_params(axis="x", labelsize=tick_fontsize)  # Set x tick size
+        ax.tick_params(axis="y", labelsize=tick_fontsize)  # Set y tick size
+        fig.savefig(self.result_dir_path / 'difference_smoothed_retrained.png')
 
 
 if __name__ == "__main__":
