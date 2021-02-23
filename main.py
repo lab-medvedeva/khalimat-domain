@@ -39,7 +39,7 @@ from modAL.disagreement import vote_entropy_sampling
 from modAL.batch import ranked_batch
 
 # Importing modules to calculate confidence intervals and descriptors
-from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold
+from utilities import calc_auc_ci, butina_cluster, generate_scaffolds, _generate_scaffold, bool_to_strint
 from utilities import DESCRIPTORS, MODELS, METRICS, SAMPLING, SELECTION_MODE, str2bool, rm_tree, file_doesnot_exist
 
 # Importing cls models
@@ -164,7 +164,7 @@ class TrainModel:
     N_L = 3  # Number of commitee learners
     S_L = 0.05  # p-value threshold
     P_R_MCC = 0.88  # The portion of data to reach the max MCC
-    W_SG = 5
+    W_SG = 29
     H_SG = 3
 
     def __init__(self, data, validation_data, activity_colunm_name,
@@ -875,6 +875,7 @@ class TrainModel:
         """
         AL = self.t_test['Mean AL']
         non_AL = self.t_test['Mean non AL']
+        r_theta = self.t_test['Metrics'] + ',\n ' + self.t_test['is_significant'].apply(lambda x: bool_to_strint(x))
         # Make adaptive max score
         max_perf = max(max(AL), max(non_AL))
         if max_perf + max_perf*0.1 > 1:
@@ -885,13 +886,13 @@ class TrainModel:
         radar = go.Figure()
         radar.add_trace(go.Scatterpolar(
             r=AL,
-            theta=METRICS,
+            theta=r_theta,
             fill='toself',
             name='AL strategy'
         ))
         radar.add_trace(go.Scatterpolar(
             r=non_AL,
-            theta=METRICS,
+            theta=r_theta,
             fill='toself',
             name='Non-AL strategy'
         ))
@@ -903,7 +904,7 @@ class TrainModel:
                 )),
             showlegend=True
         )
-        radar_plot_path = self.result_dir_path / 'AL_non_AL_performance.svg'
+        radar_plot_path = self.result_dir_path / 'AL_non_AL_performance.png'
         radar.write_image(str(radar_plot_path))
 
     def error_plot_over_iterations(self, label_fontsize=22,

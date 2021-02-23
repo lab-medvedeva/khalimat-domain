@@ -412,3 +412,9 @@ def file_doesnot_exist(path, file_name):
             'File {} not found in location {}. Please, inter valid path and file name'.format(file_name, path))
     else:
         return full_file_path
+
+def bool_to_strint(b_v):
+    if b_v:
+        return 'True'
+    else:
+        return 'False'
